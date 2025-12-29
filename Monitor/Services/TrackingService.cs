@@ -26,6 +26,7 @@ namespace SystemActivityTracker.Services
         public TrackingService(SessionStateService sessionStateService, SettingsService? settingsService = null)
         {
             _sessionStateService = sessionStateService ?? throw new ArgumentNullException(nameof(sessionStateService));
+            _sessionStateService.LockStateChanged += OnLockStateChanged;
 
             // Load settings (or use defaults)
             _settings = settingsService?.Load() ?? new AppSettings();
@@ -43,6 +44,19 @@ namespace SystemActivityTracker.Services
             _timer = new System.Timers.Timer(_settings.PollIntervalSeconds * 1000);
             _timer.AutoReset = true;
             _timer.Elapsed += OnTimerElapsed;
+        }
+
+        private void OnLockStateChanged(object? sender, bool isLocked)
+        {
+            lock (_syncRoot)
+            {
+                if (!_isRunning)
+                {
+                    return;
+                }
+
+                UpdateActivityState();
+            }
         }
 
         public void ApplySettings(AppSettings settings)
@@ -242,12 +256,34 @@ namespace SystemActivityTracker.Services
             }
         }
 
+        public bool TryGetCurrentStateSnapshot(out bool isRunning, out DateTime? currentRecordStartTime, out bool isLocked, out bool isIdle)
+        {
+            lock (_syncRoot)
+            {
+                isRunning = _isRunning;
+                if (_currentRecord == null)
+                {
+                    currentRecordStartTime = null;
+                    isLocked = false;
+                    isIdle = false;
+                    return false;
+                }
+
+                currentRecordStartTime = _currentRecord.StartTime;
+                isLocked = _currentRecord.IsLocked;
+                isIdle = _currentRecord.IsIdle;
+                return true;
+            }
+        }
+
         public void Dispose()
         {
             if (_isDisposed)
             {
                 return;
             }
+
+            _sessionStateService.LockStateChanged -= OnLockStateChanged;
 
             Shutdown();
             _timer.Stop();

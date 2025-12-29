@@ -38,6 +38,16 @@ namespace SystemActivityTracker.ViewModels
         private TimeSpan _weeklyTotalLockedDuration;
         private DateTime? _selectedDayStartTime;
         private DateTime? _selectedDayEndTime;
+        private DateTime? _runStartUtc;
+        private TimeSpan _accumulatedRunTime = TimeSpan.Zero;
+        private readonly DispatcherTimer _runningTimer = new DispatcherTimer();
+        private int _lastDisplayedRunSecond = -1;
+        private string _headerRunningTimerText = "00:00:00";
+        private TimeSpan _headerActiveBase = TimeSpan.Zero;
+        private DateTime? _headerActiveStartLocal;
+        private DateTime? _headerActiveLastRecordStartLocal;
+        private int _lastDisplayedActiveSecond = -1;
+        private string _headerActiveTimerText = "00:00:00";
         private readonly DispatcherTimer _autoRefreshTimer = new DispatcherTimer();
         private AppSettings _settingsSnapshot = new AppSettings();
 
@@ -47,6 +57,13 @@ namespace SystemActivityTracker.ViewModels
             _settingsService = settingsService;
             TodayText = DateTime.Now.ToString("dddd, dd MMMM yyyy");
             _weekStartDate = StartOfWeek(DateTime.Today, DayOfWeek.Monday);
+
+            _runningTimer.Interval = TimeSpan.FromMilliseconds(100);
+            _runningTimer.Tick += (_, __) =>
+            {
+                TickRunningTimer();
+                TickHeaderActiveTimer();
+            };
             StartCommand = new RelayCommand(_ => StartTracking());
 
             StopCommand = new RelayCommand(_ => StopTracking());
@@ -96,6 +113,8 @@ namespace SystemActivityTracker.ViewModels
             LoadMonthlyUsage();
 
             RefreshForSelectedDate();
+
+            SyncHeaderActiveBaseFromSummary();
         }
 
         private void StartTracking()
@@ -112,6 +131,7 @@ namespace SystemActivityTracker.ViewModels
 
             _trackingService.Start();
             TrackingStatus = "Tracking status: Running";
+            StartRunningTimerTicker();
             ApplyLiveRefreshSettings();
         }
 
@@ -125,13 +145,274 @@ namespace SystemActivityTracker.ViewModels
             if (!_trackingService.IsRunning)
             {
                 TrackingStatus = "Tracking status: Stopped";
+                StopRunningTimerTicker();
                 _autoRefreshTimer.Stop();
                 return;
             }
 
             _trackingService.Stop();
             TrackingStatus = "Tracking status: Stopped";
-            _autoRefreshTimer.Stop();
+            StopRunningTimerTicker();
+            ApplyLiveRefreshSettings();
+        }
+
+        public string HeaderRunningTimerText
+        {
+            get => _headerRunningTimerText;
+            private set
+            {
+                if (!string.Equals(_headerRunningTimerText, value, StringComparison.Ordinal))
+                {
+                    _headerRunningTimerText = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string HeaderActiveTimerText
+        {
+            get => _headerActiveTimerText;
+            private set
+            {
+                if (!string.Equals(_headerActiveTimerText, value, StringComparison.Ordinal))
+                {
+                    _headerActiveTimerText = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private void StartRunningTimerTicker()
+        {
+            if (_runStartUtc.HasValue)
+            {
+                return;
+            }
+
+            _runStartUtc = DateTime.UtcNow;
+            _lastDisplayedRunSecond = -1;
+            TickRunningTimer();
+            _runningTimer.Start();
+        }
+
+        private void StopRunningTimerTicker()
+        {
+            if (_runStartUtc.HasValue)
+            {
+                _accumulatedRunTime += DateTime.UtcNow - _runStartUtc.Value;
+                _runStartUtc = null;
+            }
+
+            _runningTimer.Stop();
+            TickRunningTimer();
+            TickHeaderActiveTimer();
+        }
+
+        private void TickRunningTimer()
+        {
+            DateTime now = DateTime.Now;
+
+            bool isRunning = false;
+            DateTime? currentRecordStart = null;
+            bool isLocked = false;
+            bool isIdle = false;
+
+            bool hasSnapshot = _trackingService != null && _trackingService.TryGetCurrentStateSnapshot(
+                out isRunning,
+                out currentRecordStart,
+                out isLocked,
+                out isIdle);
+
+            bool isActive = hasSnapshot && !isLocked && !isIdle;
+
+            if (isActive)
+            {
+                if (_headerActiveStartLocal == null)
+                {
+                    _headerActiveStartLocal = currentRecordStart ?? now;
+                    _headerActiveLastRecordStartLocal = currentRecordStart;
+                }
+                else if (currentRecordStart.HasValue && _headerActiveLastRecordStartLocal.HasValue && currentRecordStart.Value != _headerActiveLastRecordStartLocal.Value)
+                {
+                    _headerActiveBase += now - _headerActiveStartLocal.Value;
+                    _headerActiveStartLocal = currentRecordStart.Value;
+                    _headerActiveLastRecordStartLocal = currentRecordStart.Value;
+                }
+            }
+            else
+            {
+                if (_headerActiveStartLocal.HasValue)
+                {
+                    _headerActiveBase += now - _headerActiveStartLocal.Value;
+                    _headerActiveStartLocal = null;
+                    _headerActiveLastRecordStartLocal = null;
+                }
+            }
+
+            var total = _headerActiveBase;
+            if (_headerActiveStartLocal.HasValue)
+            {
+                total += now - _headerActiveStartLocal.Value;
+            }
+
+            if (total < TimeSpan.Zero)
+            {
+                total = TimeSpan.Zero;
+            }
+
+            int wholeSeconds = (int)total.TotalSeconds;
+            if (wholeSeconds == _lastDisplayedRunSecond)
+            {
+                return;
+            }
+
+            _lastDisplayedRunSecond = wholeSeconds;
+
+            int hours = (int)total.TotalHours;
+            int minutes = total.Minutes;
+            int seconds = total.Seconds;
+            HeaderRunningTimerText = string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00}", hours, minutes, seconds);
+        }
+
+        private void SyncHeaderActiveBaseFromSummary()
+        {
+            _headerActiveBase = ComputeActiveTotalForDate(DateTime.Today);
+            _headerActiveStartLocal = null;
+            _headerActiveLastRecordStartLocal = null;
+            _lastDisplayedActiveSecond = -1;
+            TickHeaderActiveTimer();
+        }
+
+        private static TimeSpan ComputeActiveTotalForDate(DateTime date)
+        {
+            string baseFolder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string appFolder = Path.Combine(baseFolder, "SystemActivityTracker");
+            string fileName = $"activity-log-{date:yyyy-MM-dd}.csv";
+            string filePath = Path.Combine(appFolder, fileName);
+
+            if (!File.Exists(filePath))
+            {
+                return TimeSpan.Zero;
+            }
+
+            TimeSpan totalActive = TimeSpan.Zero;
+
+            foreach (var line in File.ReadLines(filePath))
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                if (line.StartsWith("StartTime", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var fields = ParseCsvLine(line);
+                if (fields.Length < 6)
+                {
+                    continue;
+                }
+
+                if (!DateTime.TryParse(fields[0], null, DateTimeStyles.RoundtripKind, out var start))
+                {
+                    continue;
+                }
+
+                if (!DateTime.TryParse(fields[1], null, DateTimeStyles.RoundtripKind, out var end))
+                {
+                    continue;
+                }
+
+                if (!bool.TryParse(fields[4], out var isLocked))
+                {
+                    continue;
+                }
+
+                if (!bool.TryParse(fields[5], out var isIdle))
+                {
+                    continue;
+                }
+
+                if (end < start)
+                {
+                    continue;
+                }
+
+                if (!isLocked && !isIdle)
+                {
+                    totalActive += end - start;
+                }
+            }
+
+            return totalActive;
+        }
+
+        private void TickHeaderActiveTimer()
+        {
+            DateTime now = DateTime.Now;
+
+            bool isRunning = false;
+            DateTime? currentRecordStart = null;
+            bool isLocked = false;
+            bool isIdle = false;
+
+            bool hasSnapshot = _trackingService != null && _trackingService.TryGetCurrentStateSnapshot(
+                out isRunning,
+                out currentRecordStart,
+                out isLocked,
+                out isIdle);
+
+            bool isActive = hasSnapshot && !isLocked && !isIdle;
+
+            if (isActive)
+            {
+                if (_headerActiveStartLocal == null)
+                {
+                    _headerActiveStartLocal = currentRecordStart ?? now;
+                    _headerActiveLastRecordStartLocal = currentRecordStart;
+                }
+                else if (currentRecordStart.HasValue && _headerActiveLastRecordStartLocal.HasValue && currentRecordStart.Value != _headerActiveLastRecordStartLocal.Value)
+                {
+                    _headerActiveBase += now - _headerActiveStartLocal.Value;
+                    _headerActiveStartLocal = currentRecordStart.Value;
+                    _headerActiveLastRecordStartLocal = currentRecordStart.Value;
+                }
+            }
+            else
+            {
+                if (_headerActiveStartLocal.HasValue)
+                {
+                    _headerActiveBase += now - _headerActiveStartLocal.Value;
+                    _headerActiveStartLocal = null;
+                    _headerActiveLastRecordStartLocal = null;
+                }
+            }
+
+            var total = _headerActiveBase;
+            if (_headerActiveStartLocal.HasValue)
+            {
+                total += now - _headerActiveStartLocal.Value;
+            }
+
+            if (total < TimeSpan.Zero)
+            {
+                total = TimeSpan.Zero;
+            }
+
+            int wholeSeconds = (int)total.TotalSeconds;
+            if (wholeSeconds == _lastDisplayedActiveSecond)
+            {
+                return;
+            }
+
+            _lastDisplayedActiveSecond = wholeSeconds;
+
+            int hours = (int)total.TotalHours;
+            int minutes = total.Minutes;
+            int seconds = total.Seconds;
+            HeaderActiveTimerText = "Total active - " + string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00}", hours, minutes, seconds);
         }
 
         public string TodayText { get; }
@@ -225,6 +506,7 @@ namespace SystemActivityTracker.ViewModels
         {
             RefreshTodaySummary();
             RefreshWeeklySummary();
+            SyncHeaderActiveBaseFromSummary();
         }
 
         private void UpdateWeekHeaderTexts()
@@ -474,9 +756,9 @@ namespace SystemActivityTracker.ViewModels
         public string TotalIdleTimeTodayDisplay => FormatTimeSpan(TotalIdleTimeToday);
         public string TotalLockedTimeTodayDisplay => FormatTimeSpan(TotalLockedTimeToday);
 
-        public string SelectedDayActiveText  => $"{TotalActiveTimeToday.ToHoursMinutes()}";
-        public string SelectedDayIdleText    => $"{TotalIdleTimeToday.ToHoursMinutes()}";
-        public string SelectedDayLockedText  => $"{TotalLockedTimeToday.ToHoursMinutes()}";
+        public string SelectedDayActiveText => $"{TotalActiveTimeToday.ToHoursMinutes()}";
+        public string SelectedDayIdleText => $"{TotalIdleTimeToday.ToHoursMinutes()}";
+        public string SelectedDayLockedText => $"{TotalLockedTimeToday.ToHoursMinutes()}";
 
         public string SelectedDayStartText => _selectedDayStartTime.HasValue
             ? $"{_selectedDayStartTime.Value:HH:mm}"
@@ -528,9 +810,9 @@ namespace SystemActivityTracker.ViewModels
             }
         }
 
-        public string WeeklyTotalActiveText  => $"{WeeklyTotalActiveDuration.ToHoursMinutes()}";
-        public string WeeklyTotalIdleText    => $"{WeeklyTotalIdleDuration.ToHoursMinutes()}";
-        public string WeeklyTotalLockedText  => $"{WeeklyTotalLockedDuration.ToHoursMinutes()}";
+        public string WeeklyTotalActiveText => $"{WeeklyTotalActiveDuration.ToHoursMinutes()}";
+        public string WeeklyTotalIdleText => $"{WeeklyTotalIdleDuration.ToHoursMinutes()}";
+        public string WeeklyTotalLockedText => $"{WeeklyTotalLockedDuration.ToHoursMinutes()}";
 
         private void SaveSettings()
         {
@@ -822,7 +1104,7 @@ namespace SystemActivityTracker.ViewModels
             }
 
             WeeklyTotalActiveDuration = TimeSpan.FromTicks(_weeklySummaries.Sum(d => d.ActiveDuration.Ticks));
-            WeeklyTotalIdleDuration   = TimeSpan.FromTicks(_weeklySummaries.Sum(d => d.IdleDuration.Ticks));
+            WeeklyTotalIdleDuration = TimeSpan.FromTicks(_weeklySummaries.Sum(d => d.IdleDuration.Ticks));
             WeeklyTotalLockedDuration = TimeSpan.FromTicks(_weeklySummaries.Sum(d => d.LockedDuration.Ticks));
         }
 
