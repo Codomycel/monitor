@@ -408,7 +408,9 @@
                                 
                                 <DataGrid Grid.Row="1" ItemsSource="{Binding TodayAppUsage}" Style="{StaticResource ModernDataGridStyle}"
                                           VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
-                                          ScrollViewer.VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                                          ScrollViewer.VerticalScrollBarVisibility="Auto" Margin="0,8,0,0"
+                                          CanUserSortColumns="True"
+                                          IsReadOnly="True">
                                     <DataGrid.ColumnHeaderStyle>
                                         <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource ModernDataGridColumnHeaderStyle}"/>
                                     </DataGrid.ColumnHeaderStyle>
@@ -419,8 +421,8 @@
                                         <Style TargetType="DataGridCell" BasedOn="{StaticResource ModernDataGridCellStyle}"/>
                                     </DataGrid.CellStyle>
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="App / Process" Binding="{Binding ProcessName}" Width="2*"/>
-                                        <DataGridTextColumn Header="Active Time" Binding="{Binding ActiveDurationText, Mode=OneWay}" Width="1*"/>
+                                        <DataGridTextColumn Header="App / Process" Binding="{Binding ProcessName}" Width="2*" SortMemberPath="ProcessName"/>
+                                        <DataGridTextColumn Header="Active Time" Binding="{Binding ActiveDurationText, Mode=OneWay}" Width="1*" SortMemberPath="ActiveDuration"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
                             </Grid>
@@ -463,7 +465,9 @@
                         <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,0,0,10">
                             <DataGrid ItemsSource="{Binding WeeklySummaries}" Style="{StaticResource ModernDataGridStyle}"
                                       VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
-                                      ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                      CanUserSortColumns="True"
+                                      IsReadOnly="True">
                                 <DataGrid.ColumnHeaderStyle>
                                     <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource ModernDataGridColumnHeaderStyle}"/>
                                 </DataGrid.ColumnHeaderStyle>
@@ -474,10 +478,10 @@
                                     <Style TargetType="DataGridCell" BasedOn="{StaticResource ModernDataGridCellStyle}"/>
                                 </DataGrid.CellStyle>
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Date" Binding="{Binding Date, Mode=OneWay, StringFormat={}{0:dd-MMM-yyyy}}" Width="1*"/>
-                                    <DataGridTextColumn Header="Active" Binding="{Binding ActiveDurationText, Mode=OneWay}" Width="1*"/>
-                                    <DataGridTextColumn Header="Idle" Binding="{Binding IdleDurationText, Mode=OneWay}" Width="1*"/>
-                                    <DataGridTextColumn Header="Locked" Binding="{Binding LockedDurationText, Mode=OneWay}" Width="1*"/>
+                                    <DataGridTextColumn Header="Date" Binding="{Binding Date, Mode=OneWay, StringFormat={}{0:dd-MMM-yyyy}}" Width="1*" SortMemberPath="Date"/>
+                                    <DataGridTextColumn Header="Active" Binding="{Binding ActiveDurationText, Mode=OneWay}" Width="1*" SortMemberPath="ActiveDuration"/>
+                                    <DataGridTextColumn Header="Idle" Binding="{Binding IdleDurationText, Mode=OneWay}" Width="1*" SortMemberPath="IdleDuration"/>
+                                    <DataGridTextColumn Header="Locked" Binding="{Binding LockedDurationText, Mode=OneWay}" Width="1*" SortMemberPath="LockedDuration"/>
                                 </DataGrid.Columns>
                             </DataGrid>
                         </Border>
@@ -584,7 +588,9 @@
 
                                 <DataGrid ItemsSource="{Binding MonthlyAppUsage}"
                                           VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
-                                          ScrollViewer.VerticalScrollBarVisibility="Auto" Margin="0">
+                                          ScrollViewer.VerticalScrollBarVisibility="Auto" Margin="0"
+                                          CanUserSortColumns="True"
+                                          IsReadOnly="True">
                                     <DataGrid.Style>
                                         <Style TargetType="DataGrid" BasedOn="{StaticResource ModernDataGridStyle}">
                                             <Setter Property="Visibility" Value="Visible"/>
@@ -607,10 +613,10 @@
                                     </DataGrid.CellStyle>
 
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="App / Process" Binding="{Binding ProcessName}" Width="2*"/>
-                                        <DataGridTextColumn Header="Total Active" Binding="{Binding TotalActiveText, Mode=OneWay}" Width="1*"/>
-                                        <DataGridTextColumn Header="Total Idle" Binding="{Binding TotalIdleText, Mode=OneWay}" Width="1*"/>
-                                        <DataGridTextColumn Header="Total Locked" Binding="{Binding TotalLockedText, Mode=OneWay}" Width="1*"/>
+                                        <DataGridTextColumn Header="App / Process" Binding="{Binding ProcessName}" Width="2*" SortMemberPath="ProcessName"/>
+                                        <DataGridTextColumn Header="Total Active" Binding="{Binding TotalActiveText, Mode=OneWay}" Width="1*" SortMemberPath="TotalActive"/>
+                                        <DataGridTextColumn Header="Total Idle" Binding="{Binding TotalIdleText, Mode=OneWay}" Width="1*" SortMemberPath="TotalIdle"/>
+                                        <DataGridTextColumn Header="Total Locked" Binding="{Binding TotalLockedText, Mode=OneWay}" Width="1*" SortMemberPath="TotalLocked"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
                             </Grid>
@@ -639,28 +645,44 @@
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
                                         </Grid.RowDefinitions>
                                         
                                         <TextBlock Text="Idle (min):" Style="{StaticResource BodyTextStyle}" 
                                                    VerticalAlignment="Center" Margin="0,0,8,0" Width="80"/>
                                         <TextBox Grid.Column="1" Style="{StaticResource ModernTextBoxStyle}" Margin="0,0,0,6"
                                                  Text="{Binding IdleThresholdMinutes, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                        <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,0,10"
+                                                   Text="Marks you as idle after this many minutes without keyboard/mouse input."/>
                                         
-                                        <TextBlock Grid.Row="1" Text="Poll (sec):" Style="{StaticResource BodyTextStyle}" 
+                                        <TextBlock Grid.Row="2" Text="Poll (sec):" Style="{StaticResource BodyTextStyle}" 
                                                    VerticalAlignment="Center" Margin="0,0,8,0" Width="80"/>
-                                        <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource ModernTextBoxStyle}" Margin="0,0,0,6"
+                                        <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource ModernTextBoxStyle}" Margin="0,0,0,6"
                                                  Text="{Binding PollIntervalSeconds, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                        <TextBlock Grid.Row="3" Grid.ColumnSpan="2" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,0,10"
+                                                   Text="How often tracking checks the active window / idle state (lower = more frequent)."/>
                                         
-                                        <CheckBox Grid.Row="2" Grid.ColumnSpan="2" Content="Enable live refresh" 
+                                        <CheckBox Grid.Row="4" Grid.ColumnSpan="2" Content="Enable live refresh" 
                                                   Style="{StaticResource ModernCheckBoxStyle}" Margin="0,0,0,6"
                                                   IsChecked="{Binding EnableLiveRefresh, Mode=TwoWay}"/>
+
+                                        <TextBlock Grid.Row="5" Grid.ColumnSpan="2" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,0,10"
+                                                   Text="Automatically refreshes the summary while tracking is running and the selected date is today."/>
                                         
-                                        <TextBlock Grid.Row="3" Text="Refresh (sec):" Style="{StaticResource BodyTextStyle}" 
+                                        <TextBlock Grid.Row="6" Text="Refresh (sec):" Style="{StaticResource BodyTextStyle}" 
                                                    VerticalAlignment="Center" Margin="0,0,8,0" Width="80"/>
-                                        <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource ModernTextBoxStyle}" Margin="0,0,0,12"
+                                        <TextBox Grid.Row="6" Grid.Column="1" Style="{StaticResource ModernTextBoxStyle}" Margin="0,0,0,6"
                                                  Text="{Binding LiveRefreshIntervalSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                        <TextBlock Grid.Row="7" Grid.ColumnSpan="2" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,0,12"
+                                                   Text="Interval for live refresh. Applied after clicking Save Settings."/>
                                         
-                                        <Button Grid.Row="4" Grid.ColumnSpan="2" Content="Save Settings" 
+                                        <Button Grid.Row="8" Grid.ColumnSpan="2" Content="Save Settings" 
                                                 Style="{StaticResource PrimaryButtonStyle}" HorizontalAlignment="Stretch"
                                                 Command="{Binding SaveSettingsCommand}"/>
                                     </Grid>

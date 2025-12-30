@@ -86,7 +86,7 @@ namespace SystemActivityTracker.ViewModels
             {
                 if (_trackingService != null && _trackingService.IsRunning && SelectedDate.Date == DateTime.Today)
                 {
-                    RefreshTodaySummary();
+                    RefreshCommand.Execute(null);
                 }
             };
 
@@ -271,7 +271,7 @@ namespace SystemActivityTracker.ViewModels
             int hours = (int)total.TotalHours;
             int minutes = total.Minutes;
             int seconds = total.Seconds;
-            HeaderRunningTimerText = string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00}", hours, minutes, seconds);
+            HeaderRunningTimerText = "Active - " + string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00}", hours, minutes, seconds);
         }
 
         private void SyncHeaderActiveBaseFromSummary()
@@ -504,6 +504,11 @@ namespace SystemActivityTracker.ViewModels
 
         private void RefreshForSelectedDate()
         {
+            if (_trackingService != null && _trackingService.IsRunning && SelectedDate.Date == DateTime.Today)
+            {
+                _trackingService.FlushCurrentRecord();
+            }
+
             RefreshTodaySummary();
             RefreshWeeklySummary();
             SyncHeaderActiveBaseFromSummary();
@@ -824,6 +829,8 @@ namespace SystemActivityTracker.ViewModels
             _settingsService?.Save(_settingsSnapshot);
             _trackingService?.ApplySettings(_settingsSnapshot);
             ApplyLiveRefreshSettings();
+
+            RefreshCommand.Execute(null);
         }
 
         private static DateTime StartOfWeek(DateTime date, DayOfWeek startOfWeek)
