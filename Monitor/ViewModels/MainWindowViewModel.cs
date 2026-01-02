@@ -90,6 +90,29 @@ namespace SystemActivityTracker.ViewModels
                 }
             };
 
+            if (_trackingService != null)
+            {
+                _trackingService.DayRolledOver += (_, newDate) =>
+                {
+                    var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                    if (dispatcher == null)
+                    {
+                        return;
+                    }
+
+                    dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        var previousToday = newDate.Date.AddDays(-1);
+                        if (SelectedDate.Date == previousToday)
+                        {
+                            SelectedDate = newDate.Date;
+                        }
+
+                        RefreshCommand.Execute(null);
+                    }));
+                };
+            }
+
             // Load settings for UI
             var settings = _settingsService?.Load() ?? new AppSettings();
             if (settings.IdleThresholdMinutes <= 0) settings.IdleThresholdMinutes = 2;

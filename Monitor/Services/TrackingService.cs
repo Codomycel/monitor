@@ -14,12 +14,15 @@ namespace SystemActivityTracker.Services
         private AppSettings _settings;
         private readonly object _syncRoot = new object();
 
+        private DateTime _currentLogDate;
+
         private ActivityRecord? _currentRecord;
         private readonly List<ActivityRecord> _completedRecords = new List<ActivityRecord>();
         private bool _isRunning;
         private bool _isDisposed;
 
         public event EventHandler<ActivityRecord>? ActivityRecordCreated;
+        public event EventHandler<DateTime>? DayRolledOver;
 
         public bool IsRunning => _isRunning;
 
@@ -27,6 +30,8 @@ namespace SystemActivityTracker.Services
         {
             _sessionStateService = sessionStateService ?? throw new ArgumentNullException(nameof(sessionStateService));
             _sessionStateService.LockStateChanged += OnLockStateChanged;
+
+            _currentLogDate = DateTime.Now.Date;
 
             // Load settings (or use defaults)
             _settings = settingsService?.Load() ?? new AppSettings();
@@ -101,6 +106,8 @@ namespace SystemActivityTracker.Services
 
             lock (_syncRoot)
             {
+                HandleDayRolloverIfNeeded(DateTime.Now);
+
                 if (_currentRecord != null && _currentRecord.EndTime == null)
                 {
                     _currentRecord.EndTime = DateTime.Now;
@@ -122,6 +129,8 @@ namespace SystemActivityTracker.Services
                 }
 
                 DateTime now = DateTime.Now;
+
+                HandleDayRolloverIfNeeded(now);
 
                 bool isLocked = _currentRecord.IsLocked;
                 bool isIdle = _currentRecord.IsIdle;
@@ -177,6 +186,8 @@ namespace SystemActivityTracker.Services
         {
             DateTime now = DateTime.Now;
 
+            HandleDayRolloverIfNeeded(now);
+
             bool isLocked = _sessionStateService.IsLocked;
             bool isIdle = false;
             string processName = string.Empty;
@@ -210,6 +221,7 @@ namespace SystemActivityTracker.Services
 
             if (_currentRecord == null)
             {
+                _currentLogDate = now.Date;
                 _currentRecord = new ActivityRecord
                 {
                     StartTime = now,
@@ -246,7 +258,74 @@ namespace SystemActivityTracker.Services
                 IsLocked = isLocked,
                 IsIdle = isIdle
             };
+
+            _currentLogDate = now.Date;
         }
+
+        private void HandleDayRolloverIfNeeded(DateTime now)
+        {
+            if (_currentLogDate == default)
+            {
+                _currentLogDate = now.Date;
+            }
+
+            if (_currentLogDate == now.Date)
+            {
+                return;
+            }
+
+            DateTime boundary = now.Date;
+
+            if (_currentRecord != null && _currentRecord.StartTime < boundary)
+            {
+                var previousDaySegment = new ActivityRecord
+                {
+                    StartTime = _currentRecord.StartTime,
+                    EndTime = boundary,
+                    ProcessName = _currentRecord.ProcessName,
+                    WindowTitle = _currentRecord.WindowTitle,
+                    IsLocked = _currentRecord.IsLocked,
+                    IsIdle = _currentRecord.IsIdle
+                };
+
+                _completedRecords.Add(previousDaySegment);
+                _logWriter.AppendRecord(previousDaySegment);
+                ActivityRecordCreated?.Invoke(this, previousDaySegment);
+
+                _currentRecord = new ActivityRecord
+                {
+                    StartTime = boundary,
+                    ProcessName = previousDaySegment.ProcessName,
+                    WindowTitle = previousDaySegment.WindowTitle,
+                    IsLocked = previousDaySegment.IsLocked,
+                    IsIdle = previousDaySegment.IsIdle
+                };
+            }
+            else
+            {
+                _currentRecord = new ActivityRecord
+                {
+                    StartTime = boundary,
+                    ProcessName = string.Empty,
+                    WindowTitle = string.Empty,
+                    IsLocked = _sessionStateService.IsLocked,
+                    IsIdle = false
+                };
+            }
+
+            _currentLogDate = now.Date;
+            DayRolledOver?.Invoke(this, _currentLogDate);
+        }
+
+#if DEBUG
+        internal void DebugSimulateDayRollover(DateTime now)
+        {
+            lock (_syncRoot)
+            {
+                HandleDayRolloverIfNeeded(now);
+            }
+        }
+#endif
 
         public IReadOnlyList<ActivityRecord> GetCompletedRecords()
         {
