@@ -223,6 +223,7 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Started" FontSize="13" Margin="0,3,12,3"/>
@@ -243,6 +244,10 @@
 
                                 <TextBlock Grid.Row="4" Grid.Column="0" Text="Locked" FontSize="13" Margin="0,3,12,3"/>
                                 <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SelectedDayLockedText}" FontSize="13" Margin="0,3,0,3"
+                                           HorizontalAlignment="Left"/>
+
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Total" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding SelectedDayTotalText}" FontSize="13" Margin="0,3,0,3"
                                            HorizontalAlignment="Left"/>
                             </Grid>
                         </StackPanel>
@@ -392,20 +397,97 @@
                 </ItemsControl>
             </Border>
             <!-- Tabs -->
-            <TabControl Grid.Row="1" Style="{StaticResource ModernTabControlStyle}">
+            <TabControl Grid.Row="1" Style="{StaticResource ModernTabControlStyle}" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
                 
                 <!-- Application Usage Tab -->
                 <TabItem Header="Application Usage" Style="{StaticResource ModernTabItemStyle}">
-                    <Grid Margin="0,10,0,0">
-                        <Border Style="{StaticResource CardStyle}">
+                    <TabItem.Resources>
+                        <Style x:Key="WatermarkTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource ModernTextBoxStyle}">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="TextBox">
+                                        <Grid>
+                                            <Border Background="{TemplateBinding Background}"
+                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                    CornerRadius="4">
+                                                <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" Foreground="{TemplateBinding Foreground}"/>
+                                            </Border>
+
+                                            <TextBlock x:Name="Watermark"
+                                                       Text="{TemplateBinding Tag}"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       Opacity="0.7"
+                                                       Margin="{TemplateBinding Padding}"
+                                                       VerticalAlignment="Center"
+                                                       IsHitTestVisible="False"
+                                                       Visibility="Collapsed"/>
+                                        </Grid>
+
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="Text" Value="">
+                                                <Setter TargetName="Watermark" Property="Visibility" Value="Visible"/>
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter TargetName="Watermark" Property="Opacity" Value="0.4"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+
+                        <Style x:Key="IconOnlyButtonStyle" TargetType="Button">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="MinWidth" Value="26"/>
+                            <Setter Property="MinHeight" Value="26"/>
+                            <Setter Property="Width" Value="26"/>
+                            <Setter Property="Height" Value="26"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#11000000"/>
+                                            </Trigger>
+                                            <Trigger Property="IsPressed" Value="True">
+                                                <Setter Property="Background" Value="#22000000"/>
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter Property="Opacity" Value="0.35"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </TabItem.Resources>
+
+                    <Grid Margin="0,4,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Style="{StaticResource CardStyle}" Margin="0" Padding="6">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
-                                
+
                                 <TextBlock Text="Application Usage" Style="{StaticResource SectionHeaderTextStyle}"/>
-                                
+
                                 <DataGrid Grid.Row="1" ItemsSource="{Binding TodayAppUsage}" Style="{StaticResource ModernDataGridStyle}"
                                           VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
                                           ScrollViewer.VerticalScrollBarVisibility="Auto" Margin="0,8,0,0"
@@ -426,6 +508,137 @@
                                     </DataGrid.Columns>
                                 </DataGrid>
                             </Grid>
+                        </Border>
+
+                        <Border Grid.Column="2" Margin="0" Padding="6">
+                            <Border.Style>
+                                <Style TargetType="Border" BasedOn="{StaticResource CardStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsDayDetailsMode}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+
+                            <StackPanel>
+                                <TextBlock Text="Manual Tasks" Style="{StaticResource SectionHeaderTextStyle}"/>
+
+                                <TextBox Style="{StaticResource WatermarkTextBoxStyle}" Margin="0,2,0,2" Tag="Task name"
+                                         Text="{Binding ManualTaskName, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                <Grid Margin="0,0,0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBox Grid.Column="0" Style="{StaticResource WatermarkTextBoxStyle}" Margin="0,0,6,0" Tag="HH"
+                                             Text="{Binding ManualHours, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBox Grid.Column="1" Style="{StaticResource WatermarkTextBoxStyle}" Margin="0,0,6,0" Tag="MM"
+                                             Text="{Binding ManualMinutes, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBox Grid.Column="2" Style="{StaticResource WatermarkTextBoxStyle}" Tag="SS"
+                                             Text="{Binding ManualSeconds, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                    <Button Grid.Column="3" Margin="6,0,0,0" Style="{StaticResource IconOnlyButtonStyle}"
+                                            Command="{Binding PrimaryManualTaskCommand}" ToolTip="Add / Save">
+                                        <TextBlock Text="{Binding PrimaryManualTaskGlyph}"
+                                                   FontFamily="Segoe MDL2 Assets"
+                                                   FontSize="18"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                    </Button>
+                                </Grid>
+
+                                <TextBlock Text="Tip: Values auto-normalize (e.g., 90 seconds becomes 1m 30s)." Style="{StaticResource SecondaryTextStyle}" Margin="0,0,0,2"/>
+
+                                <DataGrid ItemsSource="{Binding ManualTasks}" SelectedItem="{Binding SelectedManualTask, Mode=TwoWay}"
+                                          Style="{StaticResource ModernDataGridStyle}"
+                                          VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
+                                          ScrollViewer.VerticalScrollBarVisibility="Auto" Margin="0,0,0,2"
+                                          CanUserSortColumns="True" IsReadOnly="True">
+                                    <DataGrid.RowHeight>40</DataGrid.RowHeight>
+                                    <DataGrid.ColumnHeaderStyle>
+                                        <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource ModernDataGridColumnHeaderStyle}"/>
+                                    </DataGrid.ColumnHeaderStyle>
+                                    <DataGrid.RowStyle>
+                                        <Style TargetType="DataGridRow" BasedOn="{StaticResource ModernDataGridRowStyle}"/>
+                                    </DataGrid.RowStyle>
+                                    <DataGrid.CellStyle>
+                                        <Style TargetType="DataGridCell" BasedOn="{StaticResource ModernDataGridCellStyle}"/>
+                                    </DataGrid.CellStyle>
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Width="72" MinWidth="72" CanUserSort="False">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Button Margin="2,0" CommandParameter="{Binding}">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button" BasedOn="{StaticResource IconOnlyButtonStyle}">
+                                                                <Setter Property="ToolTip" Value="Edit"/>
+                                                                <Setter Property="Command" Value="{Binding DataContext.BeginEditManualTaskCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding DataContext.IsManualEditMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                                                                        <Setter Property="Command" Value="{Binding DataContext.CancelManualTaskEditCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"/>
+                                                                        <Setter Property="CommandParameter" Value="{x:Null}"/>
+                                                                        <Setter Property="ToolTip" Value="Cancel"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                        <TextBlock Text="{Binding DataContext.ManualRowActionGlyph, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                                   FontFamily="Segoe MDL2 Assets"
+                                                                   FontSize="18"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"/>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+
+                                        <DataGridTextColumn Header="Task" Binding="{Binding TaskName}" Width="2*" SortMemberPath="TaskName"/>
+                                        <DataGridTextColumn Header="Duration" Binding="{Binding DurationText, Mode=OneWay}" Width="1*" SortMemberPath="TotalSeconds"/>
+
+                                        <DataGridTemplateColumn Width="80" MinWidth="80" CanUserSort="False">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Button Command="{Binding DataContext.DeleteManualTaskRowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                            CommandParameter="{Binding}">
+                                                        <Button.Margin>
+                                                            <Thickness>2,0,2,0</Thickness>
+                                                        </Button.Margin>
+                                                        <Button.Style>
+                                                            <Style TargetType="Button" BasedOn="{StaticResource IconOnlyButtonStyle}">
+                                                                <Setter Property="ToolTip" Value="Delete"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding DataContext.IsManualEditMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+
+                                                        <TextBlock Text="{Binding DataContext.ManualDeleteGlyph, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                                   FontFamily="Segoe MDL2 Assets"
+                                                                   FontSize="18"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"/>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <TextBlock Text="Manual:" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,6,0"/>
+                                    <TextBlock Text="{Binding ManualTotalText}" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,14,0"/>
+                                </StackPanel>
+                            </StackPanel>
                         </Border>
                     </Grid>
                 </TabItem>
@@ -556,8 +769,12 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Column="0" Text="Monthly Usage" Style="{StaticResource SectionHeaderTextStyle}"
-                                           VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                    <TextBlock Text="Monthly Usage" Style="{StaticResource SectionHeaderTextStyle}"/>
+                                    <TextBlock Text="(" Style="{StaticResource SecondaryTextStyle}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding MonthlyTotalText}" Style="{StaticResource SecondaryTextStyle}" VerticalAlignment="Center"/>
+                                    <TextBlock Text=")" Style="{StaticResource SecondaryTextStyle}" VerticalAlignment="Center"/>
+                                </StackPanel>
 
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                     <TextBlock Text="Month:" Style="{StaticResource BodyTextStyle}"

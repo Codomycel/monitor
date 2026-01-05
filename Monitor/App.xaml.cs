@@ -38,7 +38,7 @@ namespace SystemActivityTracker
         {
             try
             {
-                _trackingService?.FlushCurrentRecord();
+                _trackingService?.HandleSessionEnding();
             }
             catch
             {

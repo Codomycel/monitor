@@ -1,3 +1,13 @@
 /.vs
 /Monitor/obj
 /Monitor/bin
+
+# Build outputs (all projects)
+**/bin/
+**/obj/
+
+# optional: also ignore any build logs / temp
+**/*.user
+**/*.suo
+**/*.userosscache
+**/*.sln.docstates

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Timers;
+using Microsoft.Win32;
 using SystemActivityTracker.Models;
 
 namespace SystemActivityTracker.Services
@@ -16,6 +18,9 @@ namespace SystemActivityTracker.Services
 
         private DateTime _currentLogDate;
 
+        private bool _isSuspended;
+        private DateTime? _lastSystemEventTimestamp;
+
         private ActivityRecord? _currentRecord;
         private readonly List<ActivityRecord> _completedRecords = new List<ActivityRecord>();
         private bool _isRunning;
@@ -30,6 +35,9 @@ namespace SystemActivityTracker.Services
         {
             _sessionStateService = sessionStateService ?? throw new ArgumentNullException(nameof(sessionStateService));
             _sessionStateService.LockStateChanged += OnLockStateChanged;
+            _sessionStateService.LockEvent += OnLockEvent;
+
+            SystemEvents.PowerModeChanged += OnPowerModeChanged;
 
             _currentLogDate = DateTime.Now.Date;
 
@@ -39,6 +47,7 @@ namespace SystemActivityTracker.Services
             {
                 _settings.IdleThresholdMinutes = 2;
             }
+
             if (_settings.PollIntervalSeconds <= 0)
             {
                 _settings.PollIntervalSeconds = 5;
@@ -61,6 +70,59 @@ namespace SystemActivityTracker.Services
                 }
 
                 UpdateActivityState();
+            }
+        }
+
+        private void OnLockEvent(object? sender, SessionLockChangedEventArgs e)
+        {
+            lock (_syncRoot)
+            {
+                if (!_isRunning)
+                {
+                    return;
+                }
+
+                if (_isSuspended)
+                {
+                    LogSystemEvent("LOCK_EVENT_IGNORED_SUSPENDED", e.Timestamp);
+                    return;
+                }
+
+                LogSystemEvent(e.IsLocked ? "LOCK" : "UNLOCK", e.Timestamp);
+                HandleDayRolloverIfNeeded(e.Timestamp);
+                SplitCurrentRecordAt(e.Timestamp, e.IsLocked, false);
+            }
+        }
+
+        private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
+        {
+            lock (_syncRoot)
+            {
+                if (!_isRunning)
+                {
+                    return;
+                }
+
+                DateTime now = DateTime.Now;
+
+                if (e.Mode == PowerModes.Suspend)
+                {
+                    LogSystemEvent("SUSPEND", now);
+                    HandleDayRolloverIfNeeded(now);
+                    FinalizeCurrentRecordAt(now);
+                    _isSuspended = true;
+                    _timer.Stop();
+                    return;
+                }
+
+                if (e.Mode == PowerModes.Resume)
+                {
+                    LogSystemEvent("RESUME", now);
+                    _isSuspended = false;
+                    _currentLogDate = now.Date;
+                    _timer.Start();
+                    UpdateActivityState();
+                }
             }
         }
 
@@ -106,16 +168,10 @@ namespace SystemActivityTracker.Services
 
             lock (_syncRoot)
             {
-                HandleDayRolloverIfNeeded(DateTime.Now);
-
-                if (_currentRecord != null && _currentRecord.EndTime == null)
-                {
-                    _currentRecord.EndTime = DateTime.Now;
-                    _completedRecords.Add(_currentRecord);
-                    _logWriter.AppendRecord(_currentRecord);
-                    ActivityRecordCreated?.Invoke(this, _currentRecord);
-                    _currentRecord = null;
-                }
+                DateTime now = DateTime.Now;
+                HandleDayRolloverIfNeeded(now);
+                FinalizeCurrentRecordAt(now);
+                _currentRecord = null;
             }
         }
 
@@ -129,6 +185,12 @@ namespace SystemActivityTracker.Services
                 }
 
                 DateTime now = DateTime.Now;
+
+                if (_isSuspended)
+                {
+                    LogSystemEvent("FLUSH_IGNORED_SUSPENDED", now);
+                    return;
+                }
 
                 HandleDayRolloverIfNeeded(now);
 
@@ -163,14 +225,25 @@ namespace SystemActivityTracker.Services
                     _isRunning = false;
                 }
 
-                if (_currentRecord != null && _currentRecord.EndTime == null)
-                {
-                    _currentRecord.EndTime = DateTime.Now;
-                    _completedRecords.Add(_currentRecord);
-                    _logWriter.AppendRecord(_currentRecord);
-                    ActivityRecordCreated?.Invoke(this, _currentRecord);
-                    _currentRecord = null;
-                }
+                DateTime now = DateTime.Now;
+                LogSystemEvent("SHUTDOWN", now);
+                HandleDayRolloverIfNeeded(now);
+                FinalizeCurrentRecordAt(now);
+                _currentRecord = null;
+            }
+        }
+
+        public void HandleSessionEnding()
+        {
+            lock (_syncRoot)
+            {
+                DateTime now = DateTime.Now;
+                LogSystemEvent("SESSION_ENDING", now);
+
+                HandleDayRolloverIfNeeded(now);
+                FinalizeCurrentRecordAt(now);
+                _timer.Stop();
+                _isRunning = false;
             }
         }
 
@@ -185,6 +258,11 @@ namespace SystemActivityTracker.Services
         private void UpdateActivityState()
         {
             DateTime now = DateTime.Now;
+
+            if (_isSuspended)
+            {
+                return;
+            }
 
             HandleDayRolloverIfNeeded(now);
 
@@ -317,6 +395,83 @@ namespace SystemActivityTracker.Services
             DayRolledOver?.Invoke(this, _currentLogDate);
         }
 
+        private void FinalizeCurrentRecordAt(DateTime timestamp)
+        {
+            if (_currentRecord == null)
+            {
+                return;
+            }
+
+            if (_currentRecord.EndTime != null)
+            {
+                return;
+            }
+
+            if (timestamp < _currentRecord.StartTime)
+            {
+                timestamp = _currentRecord.StartTime;
+            }
+
+            _currentRecord.EndTime = timestamp;
+            _completedRecords.Add(_currentRecord);
+            _logWriter.AppendRecord(_currentRecord);
+            ActivityRecordCreated?.Invoke(this, _currentRecord);
+        }
+
+        private void SplitCurrentRecordAt(DateTime timestamp, bool targetIsLocked, bool targetIsIdle)
+        {
+            if (_currentRecord == null)
+            {
+                _currentRecord = new ActivityRecord
+                {
+                    StartTime = timestamp,
+                    ProcessName = targetIsLocked ? "LOCKED" : (targetIsIdle ? "IDLE" : string.Empty),
+                    WindowTitle = string.Empty,
+                    IsLocked = targetIsLocked,
+                    IsIdle = targetIsIdle
+                };
+
+                _currentLogDate = timestamp.Date;
+                return;
+            }
+
+            if (timestamp < _currentRecord.StartTime)
+            {
+                timestamp = _currentRecord.StartTime;
+            }
+
+            if (_currentRecord.EndTime == null)
+            {
+                _currentRecord.EndTime = timestamp;
+                _completedRecords.Add(_currentRecord);
+                _logWriter.AppendRecord(_currentRecord);
+                ActivityRecordCreated?.Invoke(this, _currentRecord);
+            }
+
+            _currentRecord = new ActivityRecord
+            {
+                StartTime = timestamp,
+                ProcessName = targetIsLocked ? "LOCKED" : (targetIsIdle ? "IDLE" : string.Empty),
+                WindowTitle = string.Empty,
+                IsLocked = targetIsLocked,
+                IsIdle = targetIsIdle
+            };
+
+            _currentLogDate = timestamp.Date;
+        }
+
+        private void LogSystemEvent(string name, DateTime timestamp)
+        {
+            double deltaSeconds = 0;
+            if (_lastSystemEventTimestamp.HasValue)
+            {
+                deltaSeconds = (timestamp - _lastSystemEventTimestamp.Value).TotalSeconds;
+            }
+
+            _lastSystemEventTimestamp = timestamp;
+            Debug.WriteLine($"[Tracking] {name} at {timestamp:o} (Δ{deltaSeconds:0}s)");
+        }
+
 #if DEBUG
         internal void DebugSimulateDayRollover(DateTime now)
         {
@@ -363,6 +518,9 @@ namespace SystemActivityTracker.Services
             }
 
             _sessionStateService.LockStateChanged -= OnLockStateChanged;
+            _sessionStateService.LockEvent -= OnLockEvent;
+
+            SystemEvents.PowerModeChanged -= OnPowerModeChanged;
 
             Shutdown();
             _timer.Stop();

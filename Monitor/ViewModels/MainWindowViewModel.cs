@@ -17,11 +17,20 @@ namespace SystemActivityTracker.ViewModels
     {
         private readonly TrackingService? _trackingService;
         private readonly SettingsService? _settingsService;
+        private readonly ManualTaskService _manualTaskService = new ManualTaskService();
         private string _trackingStatus = "Tracking status: Stopped";
         private TimeSpan _totalActiveTimeToday;
         private TimeSpan _totalIdleTimeToday;
         private TimeSpan _totalLockedTimeToday;
         private readonly ObservableCollection<AppUsageSummary> _todayAppUsage = new ObservableCollection<AppUsageSummary>();
+        private readonly ObservableCollection<ManualTaskEntry> _manualTasks = new ObservableCollection<ManualTaskEntry>();
+        private ManualTaskEntry? _selectedManualTask;
+        private bool _isManualEditMode;
+        private string _manualTaskName = string.Empty;
+        private string _manualHours = string.Empty;
+        private string _manualMinutes = string.Empty;
+        private string _manualSeconds = string.Empty;
+        private int _selectedTabIndex;
         private int _idleThresholdMinutes;
         private int _pollIntervalSeconds;
         private bool _enableLiveRefresh;
@@ -69,6 +78,11 @@ namespace SystemActivityTracker.ViewModels
             StopCommand = new RelayCommand(_ => StopTracking());
 
             RefreshCommand = new RelayCommand(_ => RefreshForSelectedDate());
+
+            PrimaryManualTaskCommand = new RelayCommand(_ => PrimaryManualTaskAction(), _ => CanEditManualTasks());
+            BeginEditManualTaskCommand = new RelayCommand(p => BeginEditManualTask(p as ManualTaskEntry), p => CanEditManualTasks() && !_isManualEditMode);
+            CancelManualTaskEditCommand = new RelayCommand(_ => CancelManualTaskEdit(), _ => CanEditManualTasks() && _isManualEditMode);
+            DeleteManualTaskRowCommand = new RelayCommand(p => DeleteManualTaskRow(p as ManualTaskEntry), p => CanEditManualTasks() && !_isManualEditMode);
 
             LoadMonthlyUsageCommand = new RelayCommand(_ => LoadMonthlyUsage());
 
@@ -138,6 +152,50 @@ namespace SystemActivityTracker.ViewModels
             RefreshForSelectedDate();
 
             SyncHeaderActiveBaseFromSummary();
+
+            LoadManualTasksForSelectedDate();
+        }
+
+        public int SelectedTabIndex
+        {
+            get => _selectedTabIndex;
+            set
+            {
+                if (_selectedTabIndex != value)
+                {
+                    _selectedTabIndex = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsDayDetailsMode));
+                    UpdateManualTaskCommandsCanExecute();
+
+                    if (IsDayDetailsMode)
+                    {
+                        LoadManualTasksForSelectedDate();
+                    }
+                    else
+                    {
+                        CancelManualTaskEdit();
+                    }
+                }
+            }
+        }
+
+        public bool IsDayDetailsMode => SelectedTabIndex == 0;
+
+        public bool IsManualEditMode
+        {
+            get => _isManualEditMode;
+            private set
+            {
+                if (_isManualEditMode != value)
+                {
+                    _isManualEditMode = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(PrimaryManualTaskGlyph));
+                    OnPropertyChanged(nameof(ManualRowActionGlyph));
+                    UpdateManualTaskCommandsCanExecute();
+                }
+            }
         }
 
         private void StartTracking()
@@ -521,9 +579,105 @@ namespace SystemActivityTracker.ViewModels
                     OnPropertyChanged();
                     ApplyLiveRefreshSettings();
                     RefreshForSelectedDate();
+
+                    if (IsDayDetailsMode)
+                    {
+                        LoadManualTasksForSelectedDate();
+                    }
                 }
             }
         }
+
+        public ObservableCollection<ManualTaskEntry> ManualTasks => _manualTasks;
+
+        public ManualTaskEntry? SelectedManualTask
+        {
+            get => _selectedManualTask;
+            set
+            {
+                if (!ReferenceEquals(_selectedManualTask, value))
+                {
+                    _selectedManualTask = value;
+                    OnPropertyChanged();
+                    UpdateManualTaskCommandsCanExecute();
+
+                    if (_selectedManualTask != null)
+                    {
+                        ManualTaskName = _selectedManualTask.TaskName;
+                        var ts = TimeSpan.FromSeconds(_selectedManualTask.TotalSeconds < 0 ? 0 : _selectedManualTask.TotalSeconds);
+                        ManualHours = ((int)ts.TotalHours).ToString(CultureInfo.InvariantCulture);
+                        ManualMinutes = ts.Minutes.ToString(CultureInfo.InvariantCulture);
+                        ManualSeconds = ts.Seconds.ToString(CultureInfo.InvariantCulture);
+                    }
+                }
+            }
+        }
+
+        public string ManualTaskName
+        {
+            get => _manualTaskName;
+            set
+            {
+                if (!string.Equals(_manualTaskName, value, StringComparison.Ordinal))
+                {
+                    _manualTaskName = value;
+                    OnPropertyChanged();
+                    UpdateManualTaskCommandsCanExecute();
+                }
+            }
+        }
+
+        public string ManualHours
+        {
+            get => _manualHours;
+            set
+            {
+                if (!string.Equals(_manualHours, value, StringComparison.Ordinal))
+                {
+                    _manualHours = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string ManualMinutes
+        {
+            get => _manualMinutes;
+            set
+            {
+                if (!string.Equals(_manualMinutes, value, StringComparison.Ordinal))
+                {
+                    _manualMinutes = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string ManualSeconds
+        {
+            get => _manualSeconds;
+            set
+            {
+                if (!string.Equals(_manualSeconds, value, StringComparison.Ordinal))
+                {
+                    _manualSeconds = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string ManualTotalText => FormatTimeSpan(TimeSpan.FromSeconds(_manualTasks.Sum(t => Math.Max(0, t.TotalSeconds))));
+        public string GrandTotalText => FormatTimeSpan((TotalActiveTimeToday + TotalIdleTimeToday + TotalLockedTimeToday) + TimeSpan.FromSeconds(_manualTasks.Sum(t => Math.Max(0, t.TotalSeconds))));
+
+        // Segoe MDL2 Assets glyphs
+        public string PrimaryManualTaskGlyph => IsManualEditMode ? "\uE74E" : "\uE710"; // Save / Add
+        public string ManualRowActionGlyph => IsManualEditMode ? "\uE711" : "\uE70F"; // Cancel / Edit
+        public string ManualDeleteGlyph => "\uE74D"; // Delete
+
+        public ICommand PrimaryManualTaskCommand { get; }
+        public ICommand BeginEditManualTaskCommand { get; }
+        public ICommand CancelManualTaskEditCommand { get; }
+        public ICommand DeleteManualTaskRowCommand { get; }
 
         private void RefreshForSelectedDate()
         {
@@ -652,6 +806,35 @@ namespace SystemActivityTracker.ViewModels
             }
 
             IsMonthlyUsageEmpty = _monthlyAppUsage.Count == 0;
+
+            OnPropertyChanged(nameof(MonthlyTotalText));
+        }
+
+        public string MonthlyTotalText
+        {
+            get
+            {
+                var tracked = TimeSpan.FromSeconds(_monthlyAppUsage.Sum(x => Math.Max(0, x.TotalActive.TotalSeconds + x.TotalIdle.TotalSeconds + x.TotalLocked.TotalSeconds)));
+                var manual = GetManualSecondsForMonth(SelectedMonth);
+                return FormatTimeSpan(tracked + TimeSpan.FromSeconds(manual));
+            }
+        }
+
+        private int GetManualSecondsForMonth(DateTime month)
+        {
+            var start = new DateTime(month.Year, month.Month, 1);
+            var end = start.AddMonths(1).AddDays(-1);
+
+            int total = 0;
+            for (var date = start; date <= end; date = date.AddDays(1))
+            {
+                foreach (var item in _manualTaskService.Load(date.Date))
+                {
+                    total += Math.Max(0, item.TotalSeconds);
+                }
+            }
+
+            return total;
         }
 
         public DateTime WeekStartDate
@@ -746,6 +929,8 @@ namespace SystemActivityTracker.ViewModels
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(TotalActiveTimeTodayDisplay));
                     OnPropertyChanged(nameof(SelectedDayActiveText));
+                    OnPropertyChanged(nameof(SelectedDayTotalText));
+                    OnPropertyChanged(nameof(GrandTotalText));
                 }
             }
         }
@@ -761,6 +946,8 @@ namespace SystemActivityTracker.ViewModels
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(TotalIdleTimeTodayDisplay));
                     OnPropertyChanged(nameof(SelectedDayIdleText));
+                    OnPropertyChanged(nameof(SelectedDayTotalText));
+                    OnPropertyChanged(nameof(GrandTotalText));
                 }
             }
         }
@@ -776,6 +963,8 @@ namespace SystemActivityTracker.ViewModels
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(TotalLockedTimeTodayDisplay));
                     OnPropertyChanged(nameof(SelectedDayLockedText));
+                    OnPropertyChanged(nameof(SelectedDayTotalText));
+                    OnPropertyChanged(nameof(GrandTotalText));
                 }
             }
         }
@@ -787,6 +976,16 @@ namespace SystemActivityTracker.ViewModels
         public string SelectedDayActiveText => $"{TotalActiveTimeToday.ToHoursMinutes()}";
         public string SelectedDayIdleText => $"{TotalIdleTimeToday.ToHoursMinutes()}";
         public string SelectedDayLockedText => $"{TotalLockedTimeToday.ToHoursMinutes()}";
+
+        public string SelectedDayTotalText
+        {
+            get
+            {
+                var manual = TimeSpan.FromSeconds(_manualTasks.Sum(t => Math.Max(0, t.TotalSeconds)));
+                var tracked = TotalActiveTimeToday + TotalIdleTimeToday + TotalLockedTimeToday;
+                return FormatTimeSpan(tracked + manual);
+            }
+        }
 
         public string SelectedDayStartText => _selectedDayStartTime.HasValue
             ? $"{_selectedDayStartTime.Value:HH:mm}"
@@ -854,6 +1053,197 @@ namespace SystemActivityTracker.ViewModels
             ApplyLiveRefreshSettings();
 
             RefreshCommand.Execute(null);
+        }
+
+        private bool CanEditManualTasks()
+        {
+            return IsDayDetailsMode;
+        }
+
+        private void LoadManualTasksForSelectedDate()
+        {
+            if (!IsDayDetailsMode)
+            {
+                _manualTasks.Clear();
+                SelectedManualTask = null;
+                IsManualEditMode = false;
+                OnPropertyChanged(nameof(ManualTotalText));
+                OnPropertyChanged(nameof(GrandTotalText));
+                OnPropertyChanged(nameof(SelectedDayTotalText));
+                OnPropertyChanged(nameof(MonthlyTotalText));
+                return;
+            }
+
+            _manualTasks.Clear();
+            foreach (var item in _manualTaskService.Load(SelectedDate.Date))
+            {
+                _manualTasks.Add(item);
+            }
+
+            SelectedManualTask = null;
+            IsManualEditMode = false;
+            OnPropertyChanged(nameof(ManualTotalText));
+            OnPropertyChanged(nameof(GrandTotalText));
+            OnPropertyChanged(nameof(SelectedDayTotalText));
+            OnPropertyChanged(nameof(MonthlyTotalText));
+        }
+
+        private void PersistManualTasks()
+        {
+            if (!IsDayDetailsMode)
+            {
+                return;
+            }
+
+            _manualTaskService.Save(SelectedDate.Date, _manualTasks.ToList());
+            OnPropertyChanged(nameof(ManualTotalText));
+            OnPropertyChanged(nameof(GrandTotalText));
+            OnPropertyChanged(nameof(SelectedDayTotalText));
+            OnPropertyChanged(nameof(MonthlyTotalText));
+        }
+
+        private static int ParseNonNegativeInt(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return 0;
+            }
+
+            if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+            {
+                return 0;
+            }
+
+            return parsed < 0 ? 0 : parsed;
+        }
+
+        private static int NormalizeToTotalSeconds(int hours, int minutes, int seconds)
+        {
+            long total = 0;
+            total += (long)Math.Max(0, hours) * 3600L;
+            total += (long)Math.Max(0, minutes) * 60L;
+            total += (long)Math.Max(0, seconds);
+            if (total < 0) total = 0;
+            if (total > int.MaxValue) total = int.MaxValue;
+            return (int)total;
+        }
+
+        private void PrimaryManualTaskAction()
+        {
+            if (!CanEditManualTasks())
+            {
+                return;
+            }
+
+            if (IsManualEditMode)
+            {
+                UpdateManualTask();
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(ManualTaskName))
+            {
+                return;
+            }
+
+            int hours = ParseNonNegativeInt(ManualHours);
+            int minutes = ParseNonNegativeInt(ManualMinutes);
+            int seconds = ParseNonNegativeInt(ManualSeconds);
+
+            int totalSeconds = NormalizeToTotalSeconds(hours, minutes, seconds);
+
+            var entry = new ManualTaskEntry
+            {
+                TaskName = ManualTaskName.Trim(),
+                TotalSeconds = totalSeconds
+            };
+
+            _manualTasks.Add(entry);
+
+            ManualTaskName = string.Empty;
+            ManualHours = string.Empty;
+            ManualMinutes = string.Empty;
+            ManualSeconds = string.Empty;
+
+            PersistManualTasks();
+            UpdateManualTaskCommandsCanExecute();
+        }
+
+        private void BeginEditManualTask(ManualTaskEntry? entry)
+        {
+            if (!CanEditManualTasks() || entry == null)
+            {
+                return;
+            }
+
+            SelectedManualTask = entry;
+            IsManualEditMode = true;
+        }
+
+        private void CancelManualTaskEdit()
+        {
+            IsManualEditMode = false;
+            SelectedManualTask = null;
+            ManualTaskName = string.Empty;
+            ManualHours = string.Empty;
+            ManualMinutes = string.Empty;
+            ManualSeconds = string.Empty;
+        }
+
+        private void UpdateManualTask()
+        {
+            if (!CanEditManualTasks() || SelectedManualTask == null)
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(ManualTaskName))
+            {
+                return;
+            }
+
+            int hours = ParseNonNegativeInt(ManualHours);
+            int minutes = ParseNonNegativeInt(ManualMinutes);
+            int seconds = ParseNonNegativeInt(ManualSeconds);
+
+            int totalSeconds = NormalizeToTotalSeconds(hours, minutes, seconds);
+
+            SelectedManualTask.TaskName = ManualTaskName.Trim();
+            SelectedManualTask.TotalSeconds = totalSeconds;
+            PersistManualTasks();
+            CancelManualTaskEdit();
+        }
+
+        private void DeleteManualTaskRow(ManualTaskEntry? entry)
+        {
+            if (!CanEditManualTasks() || _isManualEditMode || entry == null)
+            {
+                return;
+            }
+
+            _manualTasks.Remove(entry);
+            PersistManualTasks();
+            UpdateManualTaskCommandsCanExecute();
+        }
+
+        private void UpdateManualTaskCommandsCanExecute()
+        {
+            if (PrimaryManualTaskCommand is RelayCommand primary)
+            {
+                primary.RaiseCanExecuteChanged();
+            }
+            if (BeginEditManualTaskCommand is RelayCommand beginEdit)
+            {
+                beginEdit.RaiseCanExecuteChanged();
+            }
+            if (CancelManualTaskEditCommand is RelayCommand cancel)
+            {
+                cancel.RaiseCanExecuteChanged();
+            }
+            if (DeleteManualTaskRowCommand is RelayCommand del)
+            {
+                del.RaiseCanExecuteChanged();
+            }
         }
 
         private static DateTime StartOfWeek(DateTime date, DayOfWeek startOfWeek)
@@ -1185,6 +1575,8 @@ namespace SystemActivityTracker.ViewModels
             public bool CanExecute(object? parameter) => _canExecute?.Invoke(parameter) ?? true;
 
             public void Execute(object? parameter) => _execute(parameter);
+
+            public void RaiseCanExecuteChanged() => CommandManager.InvalidateRequerySuggested();
 
             public event EventHandler? CanExecuteChanged
             {
