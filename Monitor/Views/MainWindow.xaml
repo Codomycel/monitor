@@ -224,6 +224,7 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Started" FontSize="13" Margin="0,3,12,3"/>
@@ -235,19 +236,23 @@
                                            HorizontalAlignment="Left"/>
 
                                 <TextBlock Grid.Row="2" Grid.Column="0" Text="Active" FontSize="13" Margin="0,3,12,3"/>
-                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedDayActiveText}" FontSize="13" Margin="0,3,0,3"
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedDayActiveTrackedText}" FontSize="13" Margin="0,3,0,3"
                                            HorizontalAlignment="Left"/>
 
-                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Idle" FontSize="13" Margin="0,3,12,3"/>
-                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedDayIdleText}" FontSize="13" Margin="0,3,0,3"
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Manual" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedDayManualTasksText}" FontSize="13" Margin="0,3,0,3"
                                            HorizontalAlignment="Left"/>
 
-                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Locked" FontSize="13" Margin="0,3,12,3"/>
-                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SelectedDayLockedText}" FontSize="13" Margin="0,3,0,3"
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Total Active" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SelectedDayTotalActiveText}" FontSize="13" Margin="0,3,0,3"
                                            HorizontalAlignment="Left"/>
 
-                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Total" FontSize="13" Margin="0,3,12,3"/>
-                                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding SelectedDayTotalText}" FontSize="13" Margin="0,3,0,3"
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Idle" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding SelectedDayIdleText}" FontSize="13" Margin="0,3,0,3"
+                                           HorizontalAlignment="Left"/>
+
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="Locked" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding SelectedDayLockedText}" FontSize="13" Margin="0,3,0,3"
                                            HorizontalAlignment="Left"/>
                             </Grid>
                         </StackPanel>
@@ -276,18 +281,28 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Total Active" FontSize="13" Margin="0,3,12,3"/>
-                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding WeeklyTotalActiveText}" FontSize="13" Margin="0,3,0,3"
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Active" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding WeeklyTrackedActiveText}" FontSize="13" Margin="0,3,0,3"
                                            HorizontalAlignment="Left"/>
 
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Total Idle" FontSize="13" Margin="0,3,12,3"/>
-                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding WeeklyTotalIdleText}" FontSize="13" Margin="0,3,0,3"
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Manual" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding WeeklyManualText}" FontSize="13" Margin="0,3,0,3"
                                            HorizontalAlignment="Left"/>
 
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Total Locked" FontSize="13" Margin="0,3,12,3"/>
-                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding WeeklyTotalLockedText}" FontSize="13" Margin="0,3,0,3"
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Total Active" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding WeeklyTotalActiveText}" FontSize="13" Margin="0,3,0,3"
+                                           HorizontalAlignment="Left"/>
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Total Idle" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding WeeklyTotalIdleText}" FontSize="13" Margin="0,3,0,3"
+                                           HorizontalAlignment="Left"/>
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Total Locked" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding WeeklyTotalLockedText}" FontSize="13" Margin="0,3,0,3"
                                            HorizontalAlignment="Left"/>
                             </Grid>
                         </StackPanel>
@@ -693,6 +708,8 @@
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Date" Binding="{Binding Date, Mode=OneWay, StringFormat={}{0:dd-MMM-yyyy}}" Width="1*" SortMemberPath="Date"/>
                                     <DataGridTextColumn Header="Active" Binding="{Binding ActiveDurationText, Mode=OneWay}" Width="1*" SortMemberPath="ActiveDuration"/>
+                                    <DataGridTextColumn Header="Manual" Binding="{Binding ManualTaskDurationText, Mode=OneWay}" Width="1*" SortMemberPath="ManualTaskDuration"/>
+                                    <DataGridTextColumn Header="Total Active" Binding="{Binding TotalActiveDurationText, Mode=OneWay}" Width="1*" SortMemberPath="TotalActiveDuration"/>
                                     <DataGridTextColumn Header="Idle" Binding="{Binding IdleDurationText, Mode=OneWay}" Width="1*" SortMemberPath="IdleDuration"/>
                                     <DataGridTextColumn Header="Locked" Binding="{Binding LockedDurationText, Mode=OneWay}" Width="1*" SortMemberPath="LockedDuration"/>
                                 </DataGrid.Columns>
@@ -717,7 +734,7 @@
                                     </Grid.ColumnDefinitions>
                                     <Border Grid.Column="0" Background="{StaticResource SuccessBrush}" CornerRadius="6,0,0,6"/>
                                     <StackPanel Grid.Column="1" Margin="14" VerticalAlignment="Center">
-                                        <TextBlock Text="Active" FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Total Active" FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
                                         <TextBlock Text="{Binding WeeklyTotalActiveText}" Style="{StaticResource SecondaryTextStyle}" Margin="0,6,0,0"/>
                                     </StackPanel>
                                 </Grid>
@@ -769,11 +786,16 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left">
                                     <TextBlock Text="Monthly Usage" Style="{StaticResource SectionHeaderTextStyle}"/>
-                                    <TextBlock Text="(" Style="{StaticResource SecondaryTextStyle}" Margin="10,0,0,0" VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding MonthlyTotalText}" Style="{StaticResource SecondaryTextStyle}" VerticalAlignment="Center"/>
-                                    <TextBlock Text=")" Style="{StaticResource SecondaryTextStyle}" VerticalAlignment="Center"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                        <TextBlock Text="Active:" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,6,0"/>
+                                        <TextBlock Text="{Binding MonthlyActiveTrackedText}" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,14,0"/>
+                                        <TextBlock Text="Manual (Tasks):" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,6,0"/>
+                                        <TextBlock Text="{Binding MonthlyManualTasksText}" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,14,0"/>
+                                        <TextBlock Text="Total Active:" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,6,0"/>
+                                        <TextBlock Text="{Binding MonthlyTotalActiveText}" Style="{StaticResource SecondaryTextStyle}"/>
+                                    </StackPanel>
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">

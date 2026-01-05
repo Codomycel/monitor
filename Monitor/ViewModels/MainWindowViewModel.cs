@@ -42,11 +42,14 @@ namespace SystemActivityTracker.ViewModels
         private readonly ObservableCollection<DailySummary> _weeklySummaries = new ObservableCollection<DailySummary>();
         private readonly ObservableCollection<MonthlyAppUsageDto> _monthlyAppUsage = new ObservableCollection<MonthlyAppUsageDto>();
         private bool _isMonthlyUsageEmpty = true;
+        private TimeSpan _weeklyTrackedActiveDuration;
+        private TimeSpan _weeklyManualDuration;
         private TimeSpan _weeklyTotalActiveDuration;
         private TimeSpan _weeklyTotalIdleDuration;
         private TimeSpan _weeklyTotalLockedDuration;
         private DateTime? _selectedDayStartTime;
         private DateTime? _selectedDayEndTime;
+        private TimeSpan _selectedDayManualDuration;
         private DateTime? _runStartUtc;
         private TimeSpan _accumulatedRunTime = TimeSpan.Zero;
         private readonly DispatcherTimer _runningTimer = new DispatcherTimer();
@@ -807,16 +810,29 @@ namespace SystemActivityTracker.ViewModels
 
             IsMonthlyUsageEmpty = _monthlyAppUsage.Count == 0;
 
-            OnPropertyChanged(nameof(MonthlyTotalText));
+            OnPropertyChanged(nameof(MonthlyActiveTrackedText));
+            OnPropertyChanged(nameof(MonthlyManualTasksText));
+            OnPropertyChanged(nameof(MonthlyTotalActiveText));
         }
 
-        public string MonthlyTotalText
+        public string MonthlyActiveTrackedText
         {
             get
             {
-                var tracked = TimeSpan.FromSeconds(_monthlyAppUsage.Sum(x => Math.Max(0, x.TotalActive.TotalSeconds + x.TotalIdle.TotalSeconds + x.TotalLocked.TotalSeconds)));
-                var manual = GetManualSecondsForMonth(SelectedMonth);
-                return FormatTimeSpan(tracked + TimeSpan.FromSeconds(manual));
+                var tracked = TimeSpan.FromSeconds(_monthlyAppUsage.Sum(x => Math.Max(0, x.TotalActive.TotalSeconds)));
+                return FormatTimeSpan(tracked);
+            }
+        }
+
+        public string MonthlyManualTasksText => FormatTimeSpan(TimeSpan.FromSeconds(GetManualSecondsForMonth(SelectedMonth)));
+
+        public string MonthlyTotalActiveText
+        {
+            get
+            {
+                var tracked = TimeSpan.FromSeconds(_monthlyAppUsage.Sum(x => Math.Max(0, x.TotalActive.TotalSeconds)));
+                var manual = TimeSpan.FromSeconds(GetManualSecondsForMonth(SelectedMonth));
+                return FormatTimeSpan(tracked + manual);
             }
         }
 
@@ -835,6 +851,25 @@ namespace SystemActivityTracker.ViewModels
             }
 
             return total;
+        }
+
+        private int GetManualSecondsForDate(DateTime date)
+        {
+            try
+            {
+                return _manualTaskService.Load(date.Date).Sum(x => Math.Max(0, x.TotalSeconds));
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private void RefreshSelectedDayManualDuration()
+        {
+            _selectedDayManualDuration = TimeSpan.FromSeconds(GetManualSecondsForDate(SelectedDate.Date));
+            OnPropertyChanged(nameof(SelectedDayManualTasksText));
+            OnPropertyChanged(nameof(SelectedDayTotalActiveText));
         }
 
         public DateTime WeekStartDate
@@ -928,8 +963,8 @@ namespace SystemActivityTracker.ViewModels
                     _totalActiveTimeToday = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(TotalActiveTimeTodayDisplay));
-                    OnPropertyChanged(nameof(SelectedDayActiveText));
-                    OnPropertyChanged(nameof(SelectedDayTotalText));
+                    OnPropertyChanged(nameof(SelectedDayActiveTrackedText));
+                    OnPropertyChanged(nameof(SelectedDayTotalActiveText));
                     OnPropertyChanged(nameof(GrandTotalText));
                 }
             }
@@ -946,7 +981,7 @@ namespace SystemActivityTracker.ViewModels
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(TotalIdleTimeTodayDisplay));
                     OnPropertyChanged(nameof(SelectedDayIdleText));
-                    OnPropertyChanged(nameof(SelectedDayTotalText));
+                    OnPropertyChanged(nameof(SelectedDayTotalActiveText));
                     OnPropertyChanged(nameof(GrandTotalText));
                 }
             }
@@ -963,7 +998,7 @@ namespace SystemActivityTracker.ViewModels
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(TotalLockedTimeTodayDisplay));
                     OnPropertyChanged(nameof(SelectedDayLockedText));
-                    OnPropertyChanged(nameof(SelectedDayTotalText));
+                    OnPropertyChanged(nameof(SelectedDayTotalActiveText));
                     OnPropertyChanged(nameof(GrandTotalText));
                 }
             }
@@ -973,17 +1008,37 @@ namespace SystemActivityTracker.ViewModels
         public string TotalIdleTimeTodayDisplay => FormatTimeSpan(TotalIdleTimeToday);
         public string TotalLockedTimeTodayDisplay => FormatTimeSpan(TotalLockedTimeToday);
 
-        public string SelectedDayActiveText => $"{TotalActiveTimeToday.ToHoursMinutes()}";
+        public string SelectedDayActiveTrackedText => $"{TotalActiveTimeToday.ToHoursMinutes()}";
+        public string SelectedDayManualTasksText => $"{_selectedDayManualDuration.ToHoursMinutes()}";
+        public string SelectedDayTotalActiveText => $"{(TotalActiveTimeToday + _selectedDayManualDuration).ToHoursMinutes()}";
         public string SelectedDayIdleText => $"{TotalIdleTimeToday.ToHoursMinutes()}";
         public string SelectedDayLockedText => $"{TotalLockedTimeToday.ToHoursMinutes()}";
 
-        public string SelectedDayTotalText
+        public TimeSpan WeeklyTrackedActiveDuration
         {
-            get
+            get => _weeklyTrackedActiveDuration;
+            private set
             {
-                var manual = TimeSpan.FromSeconds(_manualTasks.Sum(t => Math.Max(0, t.TotalSeconds)));
-                var tracked = TotalActiveTimeToday + TotalIdleTimeToday + TotalLockedTimeToday;
-                return FormatTimeSpan(tracked + manual);
+                if (_weeklyTrackedActiveDuration != value)
+                {
+                    _weeklyTrackedActiveDuration = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(WeeklyTrackedActiveText));
+                }
+            }
+        }
+
+        public TimeSpan WeeklyManualDuration
+        {
+            get => _weeklyManualDuration;
+            private set
+            {
+                if (_weeklyManualDuration != value)
+                {
+                    _weeklyManualDuration = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(WeeklyManualText));
+                }
             }
         }
 
@@ -1037,6 +1092,8 @@ namespace SystemActivityTracker.ViewModels
             }
         }
 
+        public string WeeklyTrackedActiveText => $"{WeeklyTrackedActiveDuration.ToHoursMinutes()}";
+        public string WeeklyManualText => $"{WeeklyManualDuration.ToHoursMinutes()}";
         public string WeeklyTotalActiveText => $"{WeeklyTotalActiveDuration.ToHoursMinutes()}";
         public string WeeklyTotalIdleText => $"{WeeklyTotalIdleDuration.ToHoursMinutes()}";
         public string WeeklyTotalLockedText => $"{WeeklyTotalLockedDuration.ToHoursMinutes()}";
@@ -1069,8 +1126,10 @@ namespace SystemActivityTracker.ViewModels
                 IsManualEditMode = false;
                 OnPropertyChanged(nameof(ManualTotalText));
                 OnPropertyChanged(nameof(GrandTotalText));
-                OnPropertyChanged(nameof(SelectedDayTotalText));
-                OnPropertyChanged(nameof(MonthlyTotalText));
+                OnPropertyChanged(nameof(SelectedDayManualTasksText));
+                OnPropertyChanged(nameof(SelectedDayTotalActiveText));
+                OnPropertyChanged(nameof(MonthlyManualTasksText));
+                OnPropertyChanged(nameof(MonthlyTotalActiveText));
                 return;
             }
 
@@ -1084,8 +1143,10 @@ namespace SystemActivityTracker.ViewModels
             IsManualEditMode = false;
             OnPropertyChanged(nameof(ManualTotalText));
             OnPropertyChanged(nameof(GrandTotalText));
-            OnPropertyChanged(nameof(SelectedDayTotalText));
-            OnPropertyChanged(nameof(MonthlyTotalText));
+            OnPropertyChanged(nameof(SelectedDayManualTasksText));
+            OnPropertyChanged(nameof(SelectedDayTotalActiveText));
+            OnPropertyChanged(nameof(MonthlyManualTasksText));
+            OnPropertyChanged(nameof(MonthlyTotalActiveText));
         }
 
         private void PersistManualTasks()
@@ -1098,8 +1159,10 @@ namespace SystemActivityTracker.ViewModels
             _manualTaskService.Save(SelectedDate.Date, _manualTasks.ToList());
             OnPropertyChanged(nameof(ManualTotalText));
             OnPropertyChanged(nameof(GrandTotalText));
-            OnPropertyChanged(nameof(SelectedDayTotalText));
-            OnPropertyChanged(nameof(MonthlyTotalText));
+            OnPropertyChanged(nameof(SelectedDayManualTasksText));
+            OnPropertyChanged(nameof(SelectedDayTotalActiveText));
+            OnPropertyChanged(nameof(MonthlyManualTasksText));
+            OnPropertyChanged(nameof(MonthlyTotalActiveText));
         }
 
         private static int ParseNonNegativeInt(string value)
@@ -1260,6 +1323,7 @@ namespace SystemActivityTracker.ViewModels
             _todayAppUsage.Clear();
             _selectedDayStartTime = null;
             _selectedDayEndTime = null;
+            _selectedDayManualDuration = TimeSpan.Zero;
 
             string baseFolder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             string appFolder = Path.Combine(baseFolder, "SystemActivityTracker");
@@ -1268,7 +1332,8 @@ namespace SystemActivityTracker.ViewModels
 
             if (!File.Exists(filePath))
             {
-                OnPropertyChanged(nameof(SelectedDayActiveText));
+                RefreshSelectedDayManualDuration();
+                OnPropertyChanged(nameof(SelectedDayActiveTrackedText));
                 OnPropertyChanged(nameof(SelectedDayIdleText));
                 OnPropertyChanged(nameof(SelectedDayLockedText));
                 OnPropertyChanged(nameof(SelectedDayStartText));
@@ -1370,7 +1435,8 @@ namespace SystemActivityTracker.ViewModels
             }
 
             // Ensure labeled summary text updates even if totals did not change
-            OnPropertyChanged(nameof(SelectedDayActiveText));
+            RefreshSelectedDayManualDuration();
+            OnPropertyChanged(nameof(SelectedDayActiveTrackedText));
             OnPropertyChanged(nameof(SelectedDayIdleText));
             OnPropertyChanged(nameof(SelectedDayLockedText));
             OnPropertyChanged(nameof(SelectedDayStartText));
@@ -1451,6 +1517,7 @@ namespace SystemActivityTracker.ViewModels
                 TimeSpan active = TimeSpan.Zero;
                 TimeSpan idle = TimeSpan.Zero;
                 TimeSpan locked = TimeSpan.Zero;
+                TimeSpan manual = TimeSpan.FromSeconds(GetManualSecondsForDate(date.Date));
 
                 if (File.Exists(filePath))
                 {
@@ -1518,12 +1585,15 @@ namespace SystemActivityTracker.ViewModels
                 {
                     Date = date,
                     ActiveDuration = active,
+                    ManualTaskDuration = manual,
                     IdleDuration = idle,
                     LockedDuration = locked
                 });
             }
 
-            WeeklyTotalActiveDuration = TimeSpan.FromTicks(_weeklySummaries.Sum(d => d.ActiveDuration.Ticks));
+            WeeklyTrackedActiveDuration = TimeSpan.FromTicks(_weeklySummaries.Sum(d => d.ActiveDuration.Ticks));
+            WeeklyManualDuration = TimeSpan.FromTicks(_weeklySummaries.Sum(d => d.ManualTaskDuration.Ticks));
+            WeeklyTotalActiveDuration = TimeSpan.FromTicks(_weeklySummaries.Sum(d => d.TotalActiveDuration.Ticks));
             WeeklyTotalIdleDuration = TimeSpan.FromTicks(_weeklySummaries.Sum(d => d.IdleDuration.Ticks));
             WeeklyTotalLockedDuration = TimeSpan.FromTicks(_weeklySummaries.Sum(d => d.LockedDuration.Ticks));
         }
