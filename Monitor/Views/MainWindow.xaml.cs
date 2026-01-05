@@ -91,6 +91,10 @@ namespace SystemActivityTracker.Views
 
             if (System.Windows.Application.Current is App app)
             {
+                if (app.CloseTrackingService != null)
+                {
+                    app.CloseTrackingService.IsUserInitiatedExit = true;
+                }
                 app.IsShuttingDown = true;
                 app.Shutdown();
             }

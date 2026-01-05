@@ -36,6 +36,8 @@ namespace SystemActivityTracker.ViewModels
         private bool _enableLiveRefresh;
         private int _liveRefreshIntervalSeconds;
         private bool _isTestMode;
+        private int _crashLogRetentionDays;
+        private int _crashLogMaxSizeMB;
         private DateTime _selectedDate = DateTime.Today;
         private DateTime _selectedMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
         private DateTime _weekStartDate;
@@ -63,10 +65,14 @@ namespace SystemActivityTracker.ViewModels
         private readonly DispatcherTimer _autoRefreshTimer = new DispatcherTimer();
         private AppSettings _settingsSnapshot = new AppSettings();
 
+        public LastCrashViewModel LastCrash { get; }
+
         public MainWindowViewModel(TrackingService? trackingService, SettingsService? settingsService = null)
         {
             _trackingService = trackingService;
             _settingsService = settingsService;
+
+            LastCrash = new LastCrashViewModel();
             TodayText = DateTime.Now.ToString("dddd, dd MMMM yyyy");
             _weekStartDate = StartOfWeek(DateTime.Today, DayOfWeek.Monday);
 
@@ -90,6 +96,7 @@ namespace SystemActivityTracker.ViewModels
             LoadMonthlyUsageCommand = new RelayCommand(_ => LoadMonthlyUsage());
 
             SaveSettingsCommand = new RelayCommand(_ => SaveSettings());
+            ClearCrashLogsCommand = new RelayCommand(_ => ClearCrashLogs());
             LoadWeeklyCommand = new RelayCommand(_ => LoadWeeklySummary());
             ForceWriteNowCommand = new RelayCommand(_ =>
             {
@@ -136,12 +143,18 @@ namespace SystemActivityTracker.ViewModels
             if (settings.PollIntervalSeconds <= 0) settings.PollIntervalSeconds = 5;
             if (settings.LiveRefreshIntervalSeconds <= 0) settings.LiveRefreshIntervalSeconds = 30;
 
+            // Crash log policy clamps
+            if (settings.CrashLogRetentionDays < 1) settings.CrashLogRetentionDays = 14;
+            if (settings.CrashLogMaxSizeMB < 1) settings.CrashLogMaxSizeMB = 50;
+
             _settingsSnapshot = settings;
 
             IdleThresholdMinutes = settings.IdleThresholdMinutes;
             PollIntervalSeconds = settings.PollIntervalSeconds;
             EnableLiveRefresh = settings.EnableLiveRefresh;
             LiveRefreshIntervalSeconds = settings.LiveRefreshIntervalSeconds;
+            CrashLogRetentionDays = settings.CrashLogRetentionDays;
+            CrashLogMaxSizeMB = settings.CrashLogMaxSizeMB;
 
             if (settings.AutoStartTrackingOnLaunch)
             {
@@ -549,6 +562,7 @@ namespace SystemActivityTracker.ViewModels
         public ICommand StopCommand { get; }
         public ICommand RefreshCommand { get; }
         public ICommand SaveSettingsCommand { get; }
+        public ICommand ClearCrashLogsCommand { get; }
         public ICommand LoadWeeklyCommand { get; }
         public ICommand LoadMonthlyUsageCommand { get; }
         public ICommand ForceWriteNowCommand { get; }
@@ -953,6 +967,32 @@ namespace SystemActivityTracker.ViewModels
             }
         }
 
+        public int CrashLogRetentionDays
+        {
+            get => _crashLogRetentionDays;
+            set
+            {
+                if (_crashLogRetentionDays != value)
+                {
+                    _crashLogRetentionDays = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public int CrashLogMaxSizeMB
+        {
+            get => _crashLogMaxSizeMB;
+            set
+            {
+                if (_crashLogMaxSizeMB != value)
+                {
+                    _crashLogMaxSizeMB = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public TimeSpan TotalActiveTimeToday
         {
             get => _totalActiveTimeToday;
@@ -1105,11 +1145,41 @@ namespace SystemActivityTracker.ViewModels
             _settingsSnapshot.EnableLiveRefresh = EnableLiveRefresh;
             _settingsSnapshot.LiveRefreshIntervalSeconds = LiveRefreshIntervalSeconds;
 
+            _settingsSnapshot.CrashLogRetentionDays = Clamp(CrashLogRetentionDays, 1, 365);
+            _settingsSnapshot.CrashLogMaxSizeMB = Clamp(CrashLogMaxSizeMB, 1, 2048);
+            CrashLogRetentionDays = _settingsSnapshot.CrashLogRetentionDays;
+            CrashLogMaxSizeMB = _settingsSnapshot.CrashLogMaxSizeMB;
+
             _settingsService?.Save(_settingsSnapshot);
             _trackingService?.ApplySettings(_settingsSnapshot);
             ApplyLiveRefreshSettings();
 
+            if (System.Windows.Application.Current is App app && app.CloseTrackingService != null)
+            {
+                app.CloseTrackingService.ApplyCrashLogPolicy(_settingsSnapshot.CrashLogRetentionDays, _settingsSnapshot.CrashLogMaxSizeMB);
+                app.CloseTrackingService.CleanupCrashLogs();
+            }
+
+            LastCrash.Load();
+
             RefreshCommand.Execute(null);
+        }
+
+        private void ClearCrashLogs()
+        {
+            if (System.Windows.Application.Current is App app && app.CloseTrackingService != null)
+            {
+                app.CloseTrackingService.ClearCrashLogs();
+            }
+
+            LastCrash.Load();
+        }
+
+        private static int Clamp(int value, int min, int max)
+        {
+            if (value < min) return min;
+            if (value > max) return max;
+            return value;
         }
 
         private bool CanEditManualTasks()
@@ -1157,12 +1227,32 @@ namespace SystemActivityTracker.ViewModels
             }
 
             _manualTaskService.Save(SelectedDate.Date, _manualTasks.ToList());
+
+            // Update cached manual duration immediately so Total Active reflects edits without reopening.
+            _selectedDayManualDuration = TimeSpan.FromSeconds(_manualTasks.Sum(t => Math.Max(0, t.TotalSeconds)));
+
             OnPropertyChanged(nameof(ManualTotalText));
             OnPropertyChanged(nameof(GrandTotalText));
             OnPropertyChanged(nameof(SelectedDayManualTasksText));
             OnPropertyChanged(nameof(SelectedDayTotalActiveText));
             OnPropertyChanged(nameof(MonthlyManualTasksText));
             OnPropertyChanged(nameof(MonthlyTotalActiveText));
+
+            // Recompute week totals/list if the selected day is within the currently displayed week.
+            var weekStart = WeekStartDate.Date;
+            var weekEnd = weekStart.AddDays(6);
+            if (SelectedDate.Date >= weekStart && SelectedDate.Date <= weekEnd)
+            {
+                LoadWeeklySummary();
+            }
+
+            // Refresh month rollups if the selected day is within the currently selected month.
+            if (SelectedDate.Year == SelectedMonth.Year && SelectedDate.Month == SelectedMonth.Month)
+            {
+                OnPropertyChanged(nameof(MonthlyActiveTrackedText));
+                OnPropertyChanged(nameof(MonthlyManualTasksText));
+                OnPropertyChanged(nameof(MonthlyTotalActiveText));
+            }
         }
 
         private static int ParseNonNegativeInt(string value)
