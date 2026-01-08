@@ -1,14 +1,16 @@
-name: CI Build (WPF)
+name: WPF .NET 8 Build (master)
 
 on:
   push:
     branches: [ "master" ]
   pull_request:
     branches: [ "master" ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
+
     steps:
       - uses: actions/checkout@v4
 
