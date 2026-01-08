@@ -21,7 +21,7 @@ jobs:
           dotnet-version: "8.0.x"
 
       - name: Restore
-        run: dotnet restore .\YourSolution.sln
+        run: dotnet restore .\Monitor.sln
 
       - name: Build
-        run: dotnet build .\YourSolution.sln -c Release --no-restore
+        run: dotnet build .\Monitor.sln -c Release --no-restore
