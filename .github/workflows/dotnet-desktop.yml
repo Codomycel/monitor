@@ -19,13 +19,17 @@ jobs:
 
       # Publish (Self-contained) so user doesn't need to install .NET runtime
       - name: Publish (win-x64)
-        run: |
-          dotnet publish .\Monitor\Monitor.csproj -c Release -r win-x64 --self-contained true ^
-            /p:PublishSingleFile=true ^
-            /p:IncludeNativeLibrariesForSelfExtract=true ^
-            /p:DebugType=None ^
-            /p:DebugSymbols=false ^
-            -o .\publish
+        shell: pwsh
+        run: >
+          dotnet publish .\Monitor\Monitor.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          /p:PublishSingleFile=true
+          /p:IncludeNativeLibrariesForSelfExtract=true
+          /p:DebugType=None
+          /p:DebugSymbols=false
+          -o .\publish
 
       - name: Create ZIP
         run: |
