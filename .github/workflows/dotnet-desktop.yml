@@ -1,26 +1,27 @@
-name: .NET 8 Build (master)
+name: WPF .NET 8 Build (master)
 
 on:
   push:
     branches: [ "master" ]
   pull_request:
     branches: [ "master" ]
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET
+      - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore .\YourSolution.sln
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build .\YourSolution.sln -c Release --no-restore
