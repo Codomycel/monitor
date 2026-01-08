@@ -1,27 +1,37 @@
-name: WPF .NET 8 Build (master)
+name: Build & Release (WPF)
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    tags:
+      - "v*.*.*"   # v1.0.0, v1.2.3 etc
   workflow_dispatch:
 
 jobs:
-  build:
+  release:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup .NET 8
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
 
-      - name: Restore
-        run: dotnet restore .\Monitor.sln
+      # Publish (Self-contained) so user doesn't need to install .NET runtime
+      - name: Publish (win-x64)
+        run: |
+          dotnet publish .\Monitor\Monitor.csproj -c Release -r win-x64 --self-contained true ^
+            /p:PublishSingleFile=true ^
+            /p:IncludeNativeLibrariesForSelfExtract=true ^
+            /p:DebugType=None ^
+            /p:DebugSymbols=false ^
+            -o .\publish
 
-      - name: Build
-        run: dotnet build .\Monitor.sln -c Release --no-restore
+      - name: Create ZIP
+        run: |
+          powershell -NoProfile -Command "Compress-Archive -Path .\publish\* -DestinationPath Monitor-win-x64.zip -Force"
+
+      - name: Create GitHub Release and upload ZIP
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Monitor-win-x64.zip
