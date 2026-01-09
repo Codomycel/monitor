@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -64,8 +65,10 @@ namespace SystemActivityTracker.Services
 
         private static IEnumerable<ActivityLogEntry> ReadFile(string path)
         {
+            int lineNumber = 0;
             foreach (var line in File.ReadLines(path))
             {
+                lineNumber++;
                 if (string.IsNullOrWhiteSpace(line))
                 {
                     continue;
@@ -76,8 +79,23 @@ namespace SystemActivityTracker.Services
                     continue;
                 }
 
-                if (!TryParseLine(line, out var entry))
+                ActivityLogEntry entry;
+                bool ok;
+
+                try
                 {
+                    ok = TryParseLine(line, out entry);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[ActivityLogReader] Failed to parse row {lineNumber} in '{path}': {ex}");
+                    ok = false;
+                    entry = default;
+                }
+
+                if (!ok)
+                {
+                    Debug.WriteLine($"[ActivityLogReader] Skipping invalid row {lineNumber} in '{path}'.");
                     continue;
                 }
 
@@ -95,12 +113,17 @@ namespace SystemActivityTracker.Services
                 return false;
             }
 
-            if (!DateTime.TryParse(fields[0], null, DateTimeStyles.RoundtripKind, out var startTime))
+            for (int i = 0; i < fields.Length; i++)
+            {
+                fields[i] = fields[i].Trim();
+            }
+
+            if (!DateTime.TryParse(fields[0], CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var startTime))
             {
                 return false;
             }
 
-            if (!DateTime.TryParse(fields[1], null, DateTimeStyles.RoundtripKind, out var endTime))
+            if (!DateTime.TryParse(fields[1], CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var endTime))
             {
                 return false;
             }
@@ -113,18 +136,41 @@ namespace SystemActivityTracker.Services
             string processName = fields.Length > 2 ? fields[2] : string.Empty;
             string windowTitle = fields.Length > 3 ? fields[3] : string.Empty;
 
-            if (!bool.TryParse(fields[4], out var isLocked))
+            if (!TryParseBool(fields[4], out var isLocked))
             {
                 return false;
             }
 
-            if (!bool.TryParse(fields[5], out var isIdle))
+            if (!TryParseBool(fields[5], out var isIdle))
             {
                 return false;
             }
 
             entry = new ActivityLogEntry(startTime, endTime, processName, windowTitle, isLocked, isIdle);
             return true;
+        }
+
+        private static bool TryParseBool(string value, out bool parsed)
+        {
+            if (bool.TryParse(value, out parsed))
+            {
+                return true;
+            }
+
+            if (string.Equals(value, "0", StringComparison.Ordinal))
+            {
+                parsed = false;
+                return true;
+            }
+
+            if (string.Equals(value, "1", StringComparison.Ordinal))
+            {
+                parsed = true;
+                return true;
+            }
+
+            parsed = false;
+            return false;
         }
 
         private static string[] ParseCsvLine(string line)

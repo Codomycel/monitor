@@ -320,31 +320,22 @@ namespace SystemActivityTracker.ViewModels
         {
             DateTime now = DateTime.Now;
 
-            bool isRunning = false;
-            DateTime? currentRecordStart = null;
-            bool isLocked = false;
-            bool isIdle = false;
-
-            bool hasSnapshot = _trackingService != null && _trackingService.TryGetCurrentStateSnapshot(
-                out isRunning,
-                out currentRecordStart,
-                out isLocked,
-                out isIdle);
-
-            bool isActive = hasSnapshot && !isLocked && !isIdle;
+            TrackingService.TrackingSnapshot snapshot = default;
+            bool hasSnapshot = _trackingService != null && _trackingService.TryGetSnapshot(out snapshot);
+            bool isActive = hasSnapshot && !snapshot.IsLocked && !snapshot.IsIdle;
 
             if (isActive)
             {
                 if (_headerActiveStartLocal == null)
                 {
-                    _headerActiveStartLocal = currentRecordStart ?? now;
-                    _headerActiveLastRecordStartLocal = currentRecordStart;
+                    _headerActiveStartLocal = snapshot.CurrentRecordStartTime ?? now;
+                    _headerActiveLastRecordStartLocal = snapshot.CurrentRecordStartTime;
                 }
-                else if (currentRecordStart.HasValue && _headerActiveLastRecordStartLocal.HasValue && currentRecordStart.Value != _headerActiveLastRecordStartLocal.Value)
+                else if (snapshot.CurrentRecordStartTime.HasValue && _headerActiveLastRecordStartLocal.HasValue && snapshot.CurrentRecordStartTime.Value != _headerActiveLastRecordStartLocal.Value)
                 {
                     _headerActiveBase += now - _headerActiveStartLocal.Value;
-                    _headerActiveStartLocal = currentRecordStart.Value;
-                    _headerActiveLastRecordStartLocal = currentRecordStart.Value;
+                    _headerActiveStartLocal = snapshot.CurrentRecordStartTime.Value;
+                    _headerActiveLastRecordStartLocal = snapshot.CurrentRecordStartTime.Value;
                 }
             }
             else
@@ -415,31 +406,22 @@ namespace SystemActivityTracker.ViewModels
         {
             DateTime now = DateTime.Now;
 
-            bool isRunning = false;
-            DateTime? currentRecordStart = null;
-            bool isLocked = false;
-            bool isIdle = false;
-
-            bool hasSnapshot = _trackingService != null && _trackingService.TryGetCurrentStateSnapshot(
-                out isRunning,
-                out currentRecordStart,
-                out isLocked,
-                out isIdle);
-
-            bool isActive = hasSnapshot && !isLocked && !isIdle;
+            TrackingService.TrackingSnapshot snapshot = default;
+            bool hasSnapshot = _trackingService != null && _trackingService.TryGetSnapshot(out snapshot);
+            bool isActive = hasSnapshot && !snapshot.IsLocked && !snapshot.IsIdle;
 
             if (isActive)
             {
                 if (_headerActiveStartLocal == null)
                 {
-                    _headerActiveStartLocal = currentRecordStart ?? now;
-                    _headerActiveLastRecordStartLocal = currentRecordStart;
+                    _headerActiveStartLocal = snapshot.CurrentRecordStartTime ?? now;
+                    _headerActiveLastRecordStartLocal = snapshot.CurrentRecordStartTime;
                 }
-                else if (currentRecordStart.HasValue && _headerActiveLastRecordStartLocal.HasValue && currentRecordStart.Value != _headerActiveLastRecordStartLocal.Value)
+                else if (snapshot.CurrentRecordStartTime.HasValue && _headerActiveLastRecordStartLocal.HasValue && snapshot.CurrentRecordStartTime.Value != _headerActiveLastRecordStartLocal.Value)
                 {
                     _headerActiveBase += now - _headerActiveStartLocal.Value;
-                    _headerActiveStartLocal = currentRecordStart.Value;
-                    _headerActiveLastRecordStartLocal = currentRecordStart.Value;
+                    _headerActiveStartLocal = snapshot.CurrentRecordStartTime.Value;
+                    _headerActiveLastRecordStartLocal = snapshot.CurrentRecordStartTime.Value;
                 }
             }
             else

@@ -11,6 +11,12 @@ namespace SystemActivityTracker.Services
 {
     public class TrackingService : IDisposable
     {
+        public readonly record struct TrackingSnapshot(
+            bool IsRunning,
+            DateTime? CurrentRecordStartTime,
+            bool IsLocked,
+            bool IsIdle);
+
         private readonly SessionStateService _sessionStateService;
         private readonly IClock _clock;
         private readonly IIdleTimeProvider _idleTimeProvider;
@@ -72,11 +78,13 @@ namespace SystemActivityTracker.Services
             _settings = settingsService?.Load() ?? new AppSettings();
             if (_settings.IdleThresholdMinutes <= 0)
             {
+                Debug.WriteLine($"[Tracking] Invalid IdleThresholdMinutes={_settings.IdleThresholdMinutes}. Using default 5.");
                 _settings.IdleThresholdMinutes = 5;
             }
 
             if (_settings.PollIntervalSeconds <= 0)
             {
+                Debug.WriteLine($"[Tracking] Invalid PollIntervalSeconds={_settings.PollIntervalSeconds}. Using default 5.");
                 _settings.PollIntervalSeconds = 5;
             }
 
@@ -159,10 +167,12 @@ namespace SystemActivityTracker.Services
 
             if (settings.IdleThresholdMinutes <= 0)
             {
+                Debug.WriteLine($"[Tracking] Invalid IdleThresholdMinutes={settings.IdleThresholdMinutes}. Using default 5.");
                 settings.IdleThresholdMinutes = 5;
             }
             if (settings.PollIntervalSeconds <= 0)
             {
+                Debug.WriteLine($"[Tracking] Invalid PollIntervalSeconds={settings.PollIntervalSeconds}. Using default 5.");
                 settings.PollIntervalSeconds = 5;
             }
 
@@ -517,24 +527,37 @@ namespace SystemActivityTracker.Services
             }
         }
 
-        public bool TryGetCurrentStateSnapshot(out bool isRunning, out DateTime? currentRecordStartTime, out bool isLocked, out bool isIdle)
+        public bool TryGetSnapshot(out TrackingSnapshot snapshot)
         {
             lock (_syncRoot)
             {
-                isRunning = _isRunning;
                 if (_currentRecord == null)
                 {
-                    currentRecordStartTime = null;
-                    isLocked = false;
-                    isIdle = false;
+                    snapshot = new TrackingSnapshot(
+                        _isRunning,
+                        null,
+                        IsLocked: false,
+                        IsIdle: false);
                     return false;
                 }
 
-                currentRecordStartTime = _currentRecord.StartTime;
-                isLocked = _currentRecord.IsLocked;
-                isIdle = _currentRecord.IsIdle;
+                snapshot = new TrackingSnapshot(
+                    _isRunning,
+                    _currentRecord.StartTime,
+                    _currentRecord.IsLocked,
+                    _currentRecord.IsIdle);
                 return true;
             }
+        }
+
+        public bool TryGetCurrentStateSnapshot(out bool isRunning, out DateTime? currentRecordStartTime, out bool isLocked, out bool isIdle)
+        {
+            bool has = TryGetSnapshot(out var snapshot);
+            isRunning = snapshot.IsRunning;
+            currentRecordStartTime = snapshot.CurrentRecordStartTime;
+            isLocked = snapshot.IsLocked;
+            isIdle = snapshot.IsIdle;
+            return has;
         }
 
         public void Dispose()
