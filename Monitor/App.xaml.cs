@@ -55,14 +55,19 @@ namespace SystemActivityTracker
             });
 
             serviceCollection.AddSingleton<IActivityLogReader, ActivityLogReader>();
+            serviceCollection.AddSingleton<ICrashLogReader, CrashLogReader>();
             serviceCollection.AddTransient<ManualTaskService>();
+
+            serviceCollection.AddTransient<LastCrashViewModel>(sp =>
+                new LastCrashViewModel(sp.GetRequiredService<ICrashLogReader>()));
 
             serviceCollection.AddTransient<MainWindowViewModel>(sp =>
                 new MainWindowViewModel(
                     sp.GetService<TrackingService>(),
                     sp.GetService<SettingsService>(),
                     sp.GetRequiredService<IActivityLogReader>(),
-                    sp.GetRequiredService<ManualTaskService>()));
+                    sp.GetRequiredService<ManualTaskService>(),
+                    sp.GetRequiredService<LastCrashViewModel>()));
 
             Services = serviceCollection.BuildServiceProvider();
 

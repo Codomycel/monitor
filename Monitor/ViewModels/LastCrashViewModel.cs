@@ -1,25 +1,25 @@
 using System;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Text.Json;
 using System.Windows.Input;
 using SystemActivityTracker.Utilities;
+using SystemActivityTracker.Services;
+using SystemActivityTracker.Services.Abstractions;
 
 namespace SystemActivityTracker.ViewModels
 {
     public sealed class LastCrashViewModel : INotifyPropertyChanged
     {
-        private const string DailyCloseEventsFilePrefix = "close-events-";
-
         private bool _hasCrashData;
         private string _crashSummary = "No crash data found.";
         private string _crashDetailsText = "No crash data found.";
         private string _crashLogPath = string.Empty;
+
+        private readonly ICrashLogReader _crashLogReader;
 
         public bool HasCrashData
         {
@@ -76,10 +76,11 @@ namespace SystemActivityTracker.ViewModels
         public ICommand RefreshCommand { get; }
         public ICommand OpenLogCommand { get; }
 
-        public LastCrashViewModel()
+        public LastCrashViewModel(ICrashLogReader? crashLogReader = null)
         {
+            _crashLogReader = crashLogReader ?? new CrashLogReader();
             RefreshCommand = new RelayCommand(_ => Load());
-            OpenLogCommand = new RelayCommand(_ => OpenLog(), _ => !string.IsNullOrWhiteSpace(CrashLogPath) && File.Exists(CrashLogPath));
+            OpenLogCommand = new RelayCommand(_ => OpenLog(), _ => !string.IsNullOrWhiteSpace(CrashLogPath));
             Load();
         }
 
@@ -87,8 +88,7 @@ namespace SystemActivityTracker.ViewModels
         {
             try
             {
-                var (evt, sourcePath) = TryReadLatestNonGracefulEvent();
-                if (evt != null)
+                if (_crashLogReader.TryReadLatestNonGracefulEvent(out var evt, out var sourcePath))
                 {
                     CrashLogPath = sourcePath;
                     ApplyFromCloseEvent(evt);
@@ -97,8 +97,7 @@ namespace SystemActivityTracker.ViewModels
 
                 CrashLogPath = AppPaths.GetLegacyCloseEventsPath();
 
-                var lastRun = TryReadLastRun();
-                if (lastRun != null && !string.IsNullOrWhiteSpace(lastRun.CloseReason) && IsNonGraceful(lastRun.CloseReason))
+                if (_crashLogReader.TryReadLastRun(out var lastRun) && !string.IsNullOrWhiteSpace(lastRun.CloseReason) && IsNonGraceful(lastRun.CloseReason))
                 {
                     ApplyFromLastRun(lastRun);
                     return;
@@ -126,7 +125,7 @@ namespace SystemActivityTracker.ViewModels
             CrashDetailsText = "No crash data found.";
         }
 
-        private void ApplyFromCloseEvent(CloseEvent evt)
+        private void ApplyFromCloseEvent(CrashLogEvent evt)
         {
             HasCrashData = true;
 
@@ -237,134 +236,6 @@ namespace SystemActivityTracker.ViewModels
             return !string.Equals(closeReason, "Graceful", StringComparison.OrdinalIgnoreCase)
                    && !string.Equals(closeReason, "UserInitiatedExit", StringComparison.OrdinalIgnoreCase)
                    && !string.Equals(closeReason, "ShutdownOrLogoff", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static CloseEvent? TryReadLatestNonGracefulEvent(string closeEventsPath)
-        {
-            try
-            {
-                if (!File.Exists(closeEventsPath))
-                {
-                    return null;
-                }
-
-                var lines = File.ReadLines(closeEventsPath).Reverse();
-                foreach (var line in lines)
-                {
-                    if (string.IsNullOrWhiteSpace(line))
-                    {
-                        continue;
-                    }
-
-                    CloseEvent? evt;
-                    try
-                    {
-                        evt = JsonSerializer.Deserialize<CloseEvent>(line);
-                    }
-                    catch
-                    {
-                        continue;
-                    }
-
-                    if (evt == null)
-                    {
-                        continue;
-                    }
-
-                    if (IsNonGraceful(evt.CloseReason ?? string.Empty))
-                    {
-                        return evt;
-                    }
-                }
-
-                return null;
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static (CloseEvent? evt, string sourcePath) TryReadLatestNonGracefulEvent()
-        {
-            try
-            {
-                var logsFolder = AppPaths.GetLogsFolder();
-                if (Directory.Exists(logsFolder))
-                {
-                    var files = Directory.GetFiles(logsFolder, $"{DailyCloseEventsFilePrefix}*.jsonl", SearchOption.TopDirectoryOnly)
-                                         .OrderByDescending(p => p, StringComparer.OrdinalIgnoreCase)
-                                         .ToList();
-
-                    foreach (var file in files)
-                    {
-                        var evt = TryReadLatestNonGracefulEvent(file);
-                        if (evt != null)
-                        {
-                            return (evt, file);
-                        }
-                    }
-                }
-
-                var legacy = AppPaths.GetLegacyCloseEventsPath();
-                var legacyEvt = TryReadLatestNonGracefulEvent(legacy);
-                return (legacyEvt, legacy);
-            }
-            catch
-            {
-                var legacy = AppPaths.GetLegacyCloseEventsPath();
-                return (null, legacy);
-            }
-        }
-
-        private static LastRunRecord? TryReadLastRun()
-        {
-            try
-            {
-                string path = AppPaths.GetLastRunPath();
-                if (!File.Exists(path))
-                {
-                    return null;
-                }
-
-                string json = File.ReadAllText(path);
-                return JsonSerializer.Deserialize<LastRunRecord>(json);
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private sealed class LastRunRecord
-        {
-            public Guid RunId { get; set; }
-            public DateTime StartUtc { get; set; }
-            public bool IsRunning { get; set; }
-            public DateTime? EndUtc { get; set; }
-            public string? EndType { get; set; }
-            public string? CloseReason { get; set; }
-            public DateTime LastHeartbeatUtc { get; set; }
-        }
-
-        private sealed class CloseEvent
-        {
-            public DateTime TimestampUtc { get; set; }
-            public Guid RunId { get; set; }
-            public DateTime StartUtc { get; set; }
-            public string? EventName { get; set; }
-            public string? CloseReason { get; set; }
-
-            public bool IsUserInitiatedExit { get; set; }
-            public bool ShutdownOrLogoffDetected { get; set; }
-            public bool HangSuspected { get; set; }
-
-            public string? ExceptionType { get; set; }
-            public string? ExceptionMessage { get; set; }
-            public string? ExceptionStackTrace { get; set; }
-
-            public LastRunRecord? PreviousRun { get; set; }
-            public string? PreviousRunClassification { get; set; }
         }
 
         private sealed class RelayCommand : ICommand

@@ -72,14 +72,15 @@ namespace SystemActivityTracker.ViewModels
             TrackingService? trackingService,
             SettingsService? settingsService = null,
             IActivityLogReader? activityLogReader = null,
-            ManualTaskService? manualTaskService = null)
+            ManualTaskService? manualTaskService = null,
+            LastCrashViewModel? lastCrashViewModel = null)
         {
             _trackingService = trackingService;
             _settingsService = settingsService;
             _activityLogReader = activityLogReader ?? new ActivityLogReader();
             _manualTaskService = manualTaskService ?? new ManualTaskService();
 
-            LastCrash = new LastCrashViewModel();
+            LastCrash = lastCrashViewModel ?? new LastCrashViewModel();
             TodayText = DateTime.Now.ToString("dddd, dd MMMM yyyy");
             _weekStartDate = StartOfWeek(DateTime.Today, DayOfWeek.Monday);
 
