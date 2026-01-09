@@ -2,18 +2,18 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
 using Microsoft.Extensions.DependencyInjection;
+using SystemActivityTracker.Models;
 using SystemActivityTracker.ViewModels;
 
 namespace SystemActivityTracker.Views
 {
-    public partial class MainWindow : Window
+    public partial class ClassicMainWindow : Window
     {
         private bool _isExplicitExit;
         private bool _didInitialRefresh;
         private bool _isUiSwap;
-        private bool _isInitializingUiMode;
 
-        public MainWindow()
+        public ClassicMainWindow()
         {
             InitializeComponent();
 
@@ -33,15 +33,11 @@ namespace SystemActivityTracker.Views
                     var settings = app.SettingsService?.Load();
                     if (settings != null)
                     {
-                        _isInitializingUiMode = true;
-                        SetComboSelection(UiModeComboBox, settings.UiMode);
-                        SetComboSelection(UiModeComboBoxHeader, settings.UiMode);
-                        _isInitializingUiMode = false;
+                        SetUiModeComboSelection(settings.UiMode);
                     }
                 }
                 catch
                 {
-                    _isInitializingUiMode = false;
                 }
             }
             else
@@ -49,10 +45,10 @@ namespace SystemActivityTracker.Views
                 DataContext = new MainWindowViewModel(null, null);
             }
 
-            Loaded += MainWindow_Loaded;
+            Loaded += ClassicMainWindow_Loaded;
         }
 
-        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        private void ClassicMainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             if (_didInitialRefresh)
             {
@@ -149,11 +145,6 @@ namespace SystemActivityTracker.Views
 
         private void UiModeComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
-            if (_isInitializingUiMode)
-            {
-                return;
-            }
-
             if (sender is not System.Windows.Controls.ComboBox combo)
             {
                 return;
@@ -175,37 +166,19 @@ namespace SystemActivityTracker.Views
                 return;
             }
 
-            SystemActivityTracker.Models.AppSettings settings;
+            AppSettings settings;
             try
             {
                 settings = settingsService.Load();
             }
             catch
             {
-                settings = new SystemActivityTracker.Models.AppSettings();
+                settings = new AppSettings();
             }
 
             if (string.Equals(settings.UiMode, mode, System.StringComparison.OrdinalIgnoreCase))
             {
                 return;
-            }
-
-            // Keep both selectors in sync
-            _isInitializingUiMode = true;
-            try
-            {
-                if (!ReferenceEquals(combo, UiModeComboBox))
-                {
-                    SetComboSelection(UiModeComboBox, mode);
-                }
-                if (!ReferenceEquals(combo, UiModeComboBoxHeader))
-                {
-                    SetComboSelection(UiModeComboBoxHeader, mode);
-                }
-            }
-            finally
-            {
-                _isInitializingUiMode = false;
             }
 
             settings.UiMode = mode;
@@ -219,6 +192,14 @@ namespace SystemActivityTracker.Views
 
             _isUiSwap = true;
             app.SwitchUiMode(mode, DataContext as MainWindowViewModel);
+        }
+
+        private void SetUiModeComboSelection(string mode)
+        {
+            if (UiModeComboBox != null)
+            {
+                SetComboSelection(UiModeComboBox, mode);
+            }
         }
 
         private static void SetComboSelection(System.Windows.Controls.ComboBox comboBox, string mode)

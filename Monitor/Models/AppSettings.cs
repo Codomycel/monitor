@@ -8,6 +8,8 @@ namespace SystemActivityTracker.Models
         public int LiveRefreshIntervalSeconds { get; set; } = 30;
         public bool AutoStartTrackingOnLaunch { get; set; } = true;
 
+        public string UiMode { get; set; } = "Modern";
+
         public int CrashLogRetentionDays { get; set; } = 14;
         public int CrashLogMaxSizeMB { get; set; } = 50;
     }

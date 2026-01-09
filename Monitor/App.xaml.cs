@@ -7,6 +7,7 @@ using SystemActivityTracker.Services;
 using SystemActivityTracker.Services.Abstractions;
 using SystemActivityTracker.Services.Platform;
 using SystemActivityTracker.ViewModels;
+using SystemActivityTracker.Views;
 using System.Windows.Threading;
 
 namespace SystemActivityTracker
@@ -85,6 +86,66 @@ namespace SystemActivityTracker
             _trayIconService = new TrayIconService(this, _trackingService);
 
             SystemEvents.SessionEnding += OnSystemSessionEnding;
+
+            try
+            {
+                MainWindow = CreateMainWindowForMode(settings.UiMode, null);
+                MainWindow.Show();
+            }
+            catch
+            {
+                MainWindow = new MainWindow();
+                MainWindow.Show();
+            }
+        }
+
+        internal Window CreateMainWindowForMode(string? uiMode, MainWindowViewModel? existingVm)
+        {
+            var normalized = string.Equals(uiMode, "Classic", StringComparison.OrdinalIgnoreCase)
+                ? "Classic"
+                : "Modern";
+
+            MainWindowViewModel vm = existingVm ?? Services.GetRequiredService<MainWindowViewModel>();
+
+            Window window;
+            if (string.Equals(normalized, "Classic", StringComparison.Ordinal))
+            {
+                window = new ClassicMainWindow();
+            }
+            else
+            {
+                window = new MainWindow();
+            }
+
+            window.DataContext = vm;
+            return window;
+        }
+
+        internal void SwitchUiMode(string uiMode, MainWindowViewModel? existingVm)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                var old = MainWindow;
+                var newWindow = CreateMainWindowForMode(uiMode, existingVm);
+                MainWindow = newWindow;
+
+                try
+                {
+                    newWindow.Show();
+                    newWindow.Activate();
+                }
+                catch
+                {
+                }
+
+                try
+                {
+                    old?.Close();
+                }
+                catch
+                {
+                }
+            });
         }
 
         private void RegisterCloseTrackingHooks()

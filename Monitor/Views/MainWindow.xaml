@@ -4,7 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="System Activity Tracker" 
+        Title="{DynamicResource AppTitle}" 
         MinHeight="600" MinWidth="800"
         Background="{StaticResource BackgroundBrush}">
     
@@ -26,7 +26,7 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Grid.Column="0" Text="System Activity Tracker" Style="{StaticResource SubHeaderTextStyle}"
+                <TextBlock Grid.Column="0" Text="{DynamicResource AppName}" Style="{StaticResource SubHeaderTextStyle}"
                            FontWeight="SemiBold" VerticalAlignment="Center" Margin="12,0,0,0"/>
 
                 <TextBlock Grid.Column="1" Text="{Binding SelectedDate, StringFormat={}{0:dd-MMM-yyyy}}"
@@ -38,6 +38,13 @@
                     <TextBlock Text="{Binding HeaderRunningTimerText}"
                                FontFamily="Consolas" FontWeight="SemiBold"
                                VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                    <TextBlock Text="UI:" Style="{StaticResource SecondaryTextStyle}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <ComboBox x:Name="UiModeComboBoxHeader" MinWidth="120" Height="30" Margin="0,0,10,0"
+                              VerticalAlignment="Center" SelectionChanged="UiModeComboBox_SelectionChanged">
+                        <ComboBoxItem Content="Modern"/>
+                        <ComboBoxItem Content="Classic"/>
+                    </ComboBox>
 
                     <Border Width="74" Height="34" CornerRadius="6"
                             Background="Transparent" BorderBrush="Transparent" BorderThickness="0"
@@ -54,7 +61,7 @@
                                         </Setter.Value>
                                     </Setter>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding TrackingStatus}" Value="Tracking status: Running">
+                                        <DataTrigger Binding="{Binding IsTrackingRunning}" Value="True">
                                             <Setter Property="Fill" Value="{StaticResource SuccessBrush}"/>
                                             <DataTrigger.EnterActions>
                                                 <BeginStoryboard Name="HeaderDot1Storyboard">
@@ -93,7 +100,7 @@
                                         </Setter.Value>
                                     </Setter>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding TrackingStatus}" Value="Tracking status: Running">
+                                        <DataTrigger Binding="{Binding IsTrackingRunning}" Value="True">
                                             <Setter Property="Fill" Value="{StaticResource SuccessBrush}"/>
                                             <DataTrigger.EnterActions>
                                                 <BeginStoryboard Name="HeaderDot2Storyboard">
@@ -132,7 +139,7 @@
                                         </Setter.Value>
                                     </Setter>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding TrackingStatus}" Value="Tracking status: Running">
+                                        <DataTrigger Binding="{Binding IsTrackingRunning}" Value="True">
                                             <Setter Property="Fill" Value="{StaticResource SuccessBrush}"/>
                                             <DataTrigger.EnterActions>
                                                 <BeginStoryboard Name="HeaderDot3Storyboard">
@@ -335,7 +342,7 @@
                                     <Button.Style>
                                         <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding TrackingStatus}" Value="Tracking status: Running">
+                                                <DataTrigger Binding="{Binding IsTrackingRunning}" Value="True">
                                                     <Setter Property="IsEnabled" Value="False"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -352,18 +359,18 @@
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock" BasedOn="{StaticResource BodyTextStyle}">
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding TrackingStatus}" Value="Tracking status: Running">
-                                                            <Setter Property="Text" Value="Running"/>
+                                                        <DataTrigger Binding="{Binding IsTrackingRunning}" Value="True">
+                                                            <Setter Property="Text" Value="{DynamicResource TrackingLabelRunning}"/>
                                                             <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
                                                             <Setter Property="FontWeight" Value="SemiBold"/>
                                                         </DataTrigger>
-                                                        <DataTrigger Binding="{Binding TrackingStatus}" Value="Tracking status: Stopped">
-                                                            <Setter Property="Text" Value="Stopped"/>
+                                                        <DataTrigger Binding="{Binding IsTrackingRunning}" Value="False">
+                                                            <Setter Property="Text" Value="{DynamicResource TrackingLabelStopped}"/>
                                                             <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
                                                             <Setter Property="FontWeight" Value="SemiBold"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
-                                                    <Setter Property="Text" Value="Unknown"/>
+                                                    <Setter Property="Text" Value="{DynamicResource TrackingLabelUnknown}"/>
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
@@ -376,11 +383,11 @@
                                     <Button.Style>
                                         <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding TrackingStatus}" Value="Tracking status: Running">
+                                                <DataTrigger Binding="{Binding IsTrackingRunning}" Value="True">
                                                     <Setter Property="Background" Value="#DC2626"/>
                                                     <Setter Property="Foreground" Value="White"/>
                                                 </DataTrigger>
-                                                <DataTrigger Binding="{Binding TrackingStatus}" Value="Tracking status: Stopped">
+                                                <DataTrigger Binding="{Binding IsTrackingRunning}" Value="False">
                                                     <Setter Property="IsEnabled" Value="False"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -959,6 +966,20 @@
                             <Border Style="{StaticResource CardStyle}">
                                 <StackPanel>
                                     <TextBlock Text="Settings" Style="{StaticResource SectionHeaderTextStyle}"/>
+                                    
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <TextBlock Text="UI:" Style="{StaticResource BodyTextStyle}" 
+                                                   VerticalAlignment="Center" Margin="0,0,8,0" Width="80"/>
+                                        <ComboBox x:Name="UiModeComboBox" Grid.Column="1" MinWidth="140" SelectionChanged="UiModeComboBox_SelectionChanged">
+                                            <ComboBoxItem Content="Modern"/>
+                                            <ComboBoxItem Content="Classic"/>
+                                        </ComboBox>
+                                    </Grid>
                                     
                                     <Grid>
                                         <Grid.ColumnDefinitions>

@@ -15,8 +15,8 @@ namespace SystemActivityTracker.ViewModels
     public sealed class LastCrashViewModel : INotifyPropertyChanged
     {
         private bool _hasCrashData;
-        private string _crashSummary = "No crash data found.";
-        private string _crashDetailsText = "No crash data found.";
+        private string _crashSummary = GetString("CrashNoData", "No crash data found.");
+        private string _crashDetailsText = GetString("CrashNoData", "No crash data found.");
         private string _crashLogPath = string.Empty;
 
         private readonly ICrashLogReader _crashLogReader;
@@ -84,6 +84,22 @@ namespace SystemActivityTracker.ViewModels
             Load();
         }
 
+        private static string GetString(string key, string fallback)
+        {
+            try
+            {
+                if (System.Windows.Application.Current?.TryFindResource(key) is string value && !string.IsNullOrWhiteSpace(value))
+                {
+                    return value;
+                }
+            }
+            catch
+            {
+            }
+
+            return fallback;
+        }
+
         public void Load()
         {
             try
@@ -121,8 +137,8 @@ namespace SystemActivityTracker.ViewModels
         private void SetNoCrashData()
         {
             HasCrashData = false;
-            CrashSummary = "No crash data found.";
-            CrashDetailsText = "No crash data found.";
+            CrashSummary = GetString("CrashNoData", "No crash data found.");
+            CrashDetailsText = GetString("CrashNoData", "No crash data found.");
         }
 
         private void ApplyFromCloseEvent(CrashLogEvent evt)
@@ -130,7 +146,7 @@ namespace SystemActivityTracker.ViewModels
             HasCrashData = true;
 
             var endLocal = evt.TimestampUtc.ToLocalTime();
-            string reason = evt.CloseReason ?? "Unknown";
+            string reason = evt.CloseReason ?? GetString("Unknown", "Unknown");
             CrashSummary = $"{reason} at {endLocal:yyyy-MM-dd HH:mm:ss}";
 
             var sb = new StringBuilder();

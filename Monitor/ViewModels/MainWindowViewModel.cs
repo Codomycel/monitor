@@ -19,7 +19,7 @@ namespace SystemActivityTracker.ViewModels
         private readonly SettingsService? _settingsService;
         private readonly IActivityLogReader _activityLogReader;
         private readonly ManualTaskService _manualTaskService;
-        private string _trackingStatus = "Tracking status: Stopped";
+        private string _trackingStatus = GetString("TrackingStatusStopped", "Tracking status: Stopped");
         private TimeSpan _totalActiveTimeToday;
         private TimeSpan _totalIdleTimeToday;
         private TimeSpan _totalLockedTimeToday;
@@ -180,6 +180,22 @@ namespace SystemActivityTracker.ViewModels
             LoadManualTasksForSelectedDate();
         }
 
+        private static string GetString(string key, string fallback)
+        {
+            try
+            {
+                if (System.Windows.Application.Current?.TryFindResource(key) is string value && !string.IsNullOrWhiteSpace(value))
+                {
+                    return value;
+                }
+            }
+            catch
+            {
+            }
+
+            return fallback;
+        }
+
         public int SelectedTabIndex
         {
             get => _selectedTabIndex;
@@ -235,7 +251,7 @@ namespace SystemActivityTracker.ViewModels
             }
 
             _trackingService.Start();
-            TrackingStatus = "Tracking status: Running";
+            TrackingStatus = GetString("TrackingStatusRunning", "Tracking status: Running");
             OnPropertyChanged(nameof(IsTrackingRunning));
             StartRunningTimerTicker();
             ApplyLiveRefreshSettings();
@@ -250,7 +266,7 @@ namespace SystemActivityTracker.ViewModels
 
             if (!_trackingService.IsRunning)
             {
-                TrackingStatus = "Tracking status: Stopped";
+                TrackingStatus = GetString("TrackingStatusStopped", "Tracking status: Stopped");
                 OnPropertyChanged(nameof(IsTrackingRunning));
                 StopRunningTimerTicker();
                 _autoRefreshTimer.Stop();
@@ -258,7 +274,7 @@ namespace SystemActivityTracker.ViewModels
             }
 
             _trackingService.Stop();
-            TrackingStatus = "Tracking status: Stopped";
+            TrackingStatus = GetString("TrackingStatusStopped", "Tracking status: Stopped");
             OnPropertyChanged(nameof(IsTrackingRunning));
             StopRunningTimerTicker();
             ApplyLiveRefreshSettings();
@@ -370,7 +386,7 @@ namespace SystemActivityTracker.ViewModels
             int hours = (int)total.TotalHours;
             int minutes = total.Minutes;
             int seconds = total.Seconds;
-            HeaderRunningTimerText = "Active - " + string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00}", hours, minutes, seconds);
+            HeaderRunningTimerText = GetString("HeaderActivePrefix", "Active - ") + string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00}", hours, minutes, seconds);
         }
 
         private void SyncHeaderActiveBaseFromSummary()
@@ -456,7 +472,7 @@ namespace SystemActivityTracker.ViewModels
             int hours = (int)total.TotalHours;
             int minutes = total.Minutes;
             int seconds = total.Seconds;
-            HeaderActiveTimerText = "Total active - " + string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00}", hours, minutes, seconds);
+            HeaderActiveTimerText = GetString("HeaderTotalActivePrefix", "Total active - ") + string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00}", hours, minutes, seconds);
         }
 
         public string TodayText { get; }

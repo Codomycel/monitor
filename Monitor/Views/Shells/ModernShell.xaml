@@ -1,0 +1,346 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             Background="{StaticResource BackgroundBrush}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="{StaticResource CardBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                Height="52" Padding="0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="{DynamicResource AppName}" Style="{StaticResource SubHeaderTextStyle}"
+                           FontWeight="SemiBold" VerticalAlignment="Center" Margin="12,0,0,0"/>
+
+                <TextBlock Grid.Column="1" Text="{Binding SelectedDate, StringFormat={}{0:dd-MMM-yyyy}}"
+                           Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center"
+                           HorizontalAlignment="Center" TextAlignment="Center"/>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal"
+                            HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0">
+                    <TextBlock Text="{Binding HeaderRunningTimerText}"
+                               FontFamily="Consolas" FontWeight="SemiBold"
+                               VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                    <Border Width="74" Height="34" CornerRadius="6"
+                            Background="Transparent" BorderBrush="Transparent" BorderThickness="0"
+                            VerticalAlignment="Center" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Ellipse Width="15" Height="15" Margin="0,0,6,0">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="{StaticResource ErrorBrush}"/>
+                                        <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+                                        <Setter Property="RenderTransform">
+                                            <Setter.Value>
+                                                <TranslateTransform Y="0"/>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsTrackingRunning}" Value="True">
+                                                <Setter Property="Fill" Value="{StaticResource SuccessBrush}"/>
+                                                <DataTrigger.EnterActions>
+                                                    <BeginStoryboard Name="HeaderDot1Storyboard">
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                                             From="0" To="-4" Duration="0:0:0.45" AutoReverse="True" BeginTime="0:0:0">
+                                                                <DoubleAnimation.EasingFunction>
+                                                                    <SineEase EasingMode="EaseInOut"/>
+                                                                </DoubleAnimation.EasingFunction>
+                                                            </DoubleAnimation>
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.EnterActions>
+                                                <DataTrigger.ExitActions>
+                                                    <StopStoryboard BeginStoryboardName="HeaderDot1Storyboard"/>
+                                                    <BeginStoryboard>
+                                                        <Storyboard>
+                                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="0" Duration="0:0:0"/>
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.ExitActions>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+
+                            <Ellipse Width="15" Height="15" Margin="0,0,6,0">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="{StaticResource ErrorBrush}"/>
+                                        <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+                                        <Setter Property="RenderTransform">
+                                            <Setter.Value>
+                                                <TranslateTransform Y="0"/>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsTrackingRunning}" Value="True">
+                                                <Setter Property="Fill" Value="{StaticResource SuccessBrush}"/>
+                                                <DataTrigger.EnterActions>
+                                                    <BeginStoryboard Name="HeaderDot2Storyboard">
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                                             From="0" To="-4" Duration="0:0:0.45" AutoReverse="True" BeginTime="0:0:0.15">
+                                                                <DoubleAnimation.EasingFunction>
+                                                                    <SineEase EasingMode="EaseInOut"/>
+                                                                </DoubleAnimation.EasingFunction>
+                                                            </DoubleAnimation>
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.EnterActions>
+                                                <DataTrigger.ExitActions>
+                                                    <StopStoryboard BeginStoryboardName="HeaderDot2Storyboard"/>
+                                                    <BeginStoryboard>
+                                                        <Storyboard>
+                                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="0" Duration="0:0:0"/>
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.ExitActions>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+
+                            <Ellipse Width="15" Height="15">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="{StaticResource ErrorBrush}"/>
+                                        <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+                                        <Setter Property="RenderTransform">
+                                            <Setter.Value>
+                                                <TranslateTransform Y="0"/>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsTrackingRunning}" Value="True">
+                                                <Setter Property="Fill" Value="{StaticResource SuccessBrush}"/>
+                                                <DataTrigger.EnterActions>
+                                                    <BeginStoryboard Name="HeaderDot3Storyboard">
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                                             From="0" To="-4" Duration="0:0:0.45" AutoReverse="True" BeginTime="0:0:0.3">
+                                                                <DoubleAnimation.EasingFunction>
+                                                                    <SineEase EasingMode="EaseInOut"/>
+                                                                </DoubleAnimation.EasingFunction>
+                                                            </DoubleAnimation>
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.EnterActions>
+                                                <DataTrigger.ExitActions>
+                                                    <StopStoryboard BeginStoryboardName="HeaderDot3Storyboard"/>
+                                                    <BeginStoryboard>
+                                                        <Storyboard>
+                                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="0" Duration="0:0:0"/>
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.ExitActions>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Background="Transparent" HorizontalAlignment="Stretch" Margin="0,0,0,12">
+                <ItemsControl HorizontalAlignment="Stretch">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" HorizontalAlignment="Stretch" ItemWidth="320"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemContainerStyle>
+                        <Style TargetType="Border">
+                            <Setter Property="Margin" Value="0,0,12,12"/>
+                            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                        </Style>
+                    </ItemsControl.ItemContainerStyle>
+
+                    <Border Background="White" CornerRadius="10" Padding="12" BorderBrush="#E5E7EB" BorderThickness="1"
+                            MinWidth="320" HorizontalAlignment="Stretch">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="8" ShadowDepth="1" Opacity="0.12"/>
+                        </Border.Effect>
+
+                        <StackPanel>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Text="Selected Day" Style="{StaticResource SectionHeaderTextStyle}" VerticalAlignment="Center"
+                                           FontWeight="SemiBold" FontSize="15" Margin="0,0,0,8"/>
+                                <DatePicker Grid.Column="1" SelectedDate="{Binding SelectedDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Width="140"/>
+                            </Grid>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Started" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedDayStartText}" FontSize="13" Margin="0,3,0,3"
+                                           HorizontalAlignment="Left"/>
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Ended" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedDayEndText}" FontSize="13" Margin="0,3,0,3"
+                                           HorizontalAlignment="Left"/>
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Active" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedDayActiveTrackedText}" FontSize="13" Margin="0,3,0,3"
+                                           HorizontalAlignment="Left"/>
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Manual" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedDayManualTasksText}" FontSize="13" Margin="0,3,0,3"
+                                           HorizontalAlignment="Left"/>
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Total Active" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SelectedDayTotalActiveText}" FontSize="13" Margin="0,3,0,3"
+                                           HorizontalAlignment="Left"/>
+
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Idle" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding SelectedDayIdleText}" FontSize="13" Margin="0,3,0,3"
+                                           HorizontalAlignment="Left"/>
+
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="Locked" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding SelectedDayLockedText}" FontSize="13" Margin="0,3,0,3"
+                                           HorizontalAlignment="Left"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Background="White" CornerRadius="10" Padding="12" BorderBrush="#E5E7EB" BorderThickness="1"
+                            MinWidth="320" HorizontalAlignment="Stretch">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="8" ShadowDepth="1" Opacity="0.12"/>
+                        </Border.Effect>
+
+                        <StackPanel>
+                            <TextBlock Text="This Week" Style="{StaticResource SectionHeaderTextStyle}" Margin="0,0,0,8"
+                                       FontWeight="SemiBold" FontSize="15"/>
+
+                            <TextBlock Text="{Binding WeekNumberText}" Style="{StaticResource SecondaryTextStyle}"/>
+                            <TextBlock Text="{Binding WeekRangeText}" Style="{StaticResource SecondaryTextStyle}" Margin="0,2,0,8"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Active" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding WeeklyTrackedActiveText}" FontSize="13" Margin="0,3,0,3"
+                                           HorizontalAlignment="Left"/>
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Manual" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding WeeklyManualText}" FontSize="13" Margin="0,3,0,3"
+                                           HorizontalAlignment="Left"/>
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Total Active" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding WeeklyTotalActiveText}" FontSize="13" Margin="0,3,0,3"
+                                           HorizontalAlignment="Left"/>
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Total Idle" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding WeeklyTotalIdleText}" FontSize="13" Margin="0,3,0,3"
+                                           HorizontalAlignment="Left"/>
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Total Locked" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding WeeklyTotalLockedText}" FontSize="13" Margin="0,3,0,3"
+                                           HorizontalAlignment="Left"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </ItemsControl>
+            </Border>
+
+            <TabControl Grid.Row="1" Style="{StaticResource ModernTabControlStyle}" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
+                <TabItem Header="Application Usage" Style="{StaticResource ModernTabItemStyle}">
+                    <ContentPresenter Content="{Binding}"/>
+                </TabItem>
+                <TabItem Header="Weekly Overview" Style="{StaticResource ModernTabItemStyle}">
+                    <ContentPresenter Content="{Binding}"/>
+                </TabItem>
+                <TabItem Header="Monthly Usage" Style="{StaticResource ModernTabItemStyle}">
+                    <ContentPresenter Content="{Binding}"/>
+                </TabItem>
+                <TabItem Header="Last Crash" Style="{StaticResource ModernTabItemStyle}">
+                    <ContentPresenter Content="{Binding}"/>
+                </TabItem>
+                <TabItem Header="Settings" Style="{StaticResource ModernTabItemStyle}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,10,0,0">
+                        <StackPanel>
+                            <Border Style="{StaticResource CardStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Settings" Style="{StaticResource SectionHeaderTextStyle}"/>
+
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="UI:" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" Margin="0,0,8,0" Width="80"/>
+                                        <ComboBox Grid.Column="1" MinWidth="140">
+                                            <ComboBoxItem Content="Modern"/>
+                                            <ComboBoxItem Content="Classic"/>
+                                        </ComboBox>
+                                    </Grid>
+
+                                    <TextBlock Text="Idle (min):" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" Margin="0,0,8,0" Width="80"/>
+                                    <TextBox Style="{StaticResource ModernTextBoxStyle}" Margin="0,0,0,6"
+                                             Text="{Binding IdleThresholdMinutes, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                    <Button Content="Save Settings" Style="{StaticResource PrimaryButtonStyle}"
+                                            HorizontalAlignment="Stretch" Command="{Binding SaveSettingsCommand}"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </Grid>
+</UserControl>

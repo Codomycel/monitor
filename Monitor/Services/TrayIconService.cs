@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Forms;
+using SystemActivityTracker.Models;
 using SystemActivityTracker.Views;
 
 namespace SystemActivityTracker.Services
@@ -18,16 +19,32 @@ namespace SystemActivityTracker.Services
             _app = app ?? throw new ArgumentNullException(nameof(app));
             _trackingService = trackingService ?? throw new ArgumentNullException(nameof(trackingService));
 
+            static string GetString(string key, string fallback)
+            {
+                try
+                {
+                    if (System.Windows.Application.Current?.TryFindResource(key) is string value && !string.IsNullOrWhiteSpace(value))
+                    {
+                        return value;
+                    }
+                }
+                catch
+                {
+                }
+
+                return fallback;
+            }
+
             _notifyIcon = new NotifyIcon
             {
-                Text = "System Activity Tracker",
+                Text = GetString("AppName", "System Activity Tracker"),
                 Icon = GetAppIcon(),
                 Visible = true
             };
 
             var contextMenu = new ContextMenuStrip();
-            contextMenu.Items.Add("Open", null, (_, __) => ShowMainWindow());
-            contextMenu.Items.Add("Exit", null, (_, __) => ExitApplication());
+            contextMenu.Items.Add(GetString("TrayMenuOpen", "Open"), null, (_, __) => ShowMainWindow());
+            contextMenu.Items.Add(GetString("TrayMenuExit", "Exit"), null, (_, __) => ExitApplication());
 
             _notifyIcon.ContextMenuStrip = contextMenu;
             _notifyIcon.DoubleClick += (_, __) => ShowMainWindow();
@@ -60,11 +77,24 @@ namespace SystemActivityTracker.Services
             {
                 if (_app.MainWindow == null)
                 {
-                    _app.MainWindow = new MainWindow();
+                    try
+                    {
+                        var settings = _app.SettingsService?.Load() ?? new AppSettings();
+                        _app.MainWindow = _app.CreateMainWindowForMode(settings.UiMode, null);
+                    }
+                    catch
+                    {
+                        _app.MainWindow = new MainWindow();
+                    }
                 }
+
                 if (_app.MainWindow is MainWindow mw)
                 {
                     mw.RestoreFromTrayInternal();
+                }
+                else if (_app.MainWindow is ClassicMainWindow cmw)
+                {
+                    cmw.RestoreFromTrayInternal();
                 }
                 else
                 {
@@ -92,6 +122,10 @@ namespace SystemActivityTracker.Services
                 if (_app.MainWindow is MainWindow mw)
                 {
                     mw.RunRefreshCommandInternal();
+                }
+                else if (_app.MainWindow is ClassicMainWindow cmw)
+                {
+                    cmw.RunRefreshCommandInternal();
                 }
 
                 _app.IsShuttingDown = true;
