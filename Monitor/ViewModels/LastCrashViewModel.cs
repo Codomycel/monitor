@@ -8,15 +8,12 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Windows.Input;
+using SystemActivityTracker.Utilities;
 
 namespace SystemActivityTracker.ViewModels
 {
     public sealed class LastCrashViewModel : INotifyPropertyChanged
     {
-        private const string AppFolderName = "SystemActivityTracker";
-        private const string LastRunFileName = "LastRun.json";
-        private const string CloseEventsFileName = "close-events.jsonl";
-        private const string LogsFolderName = "logs";
         private const string DailyCloseEventsFilePrefix = "close-events-";
 
         private bool _hasCrashData;
@@ -98,7 +95,7 @@ namespace SystemActivityTracker.ViewModels
                     return;
                 }
 
-                CrashLogPath = GetLegacyCloseEventsPath();
+                CrashLogPath = AppPaths.GetLegacyCloseEventsPath();
 
                 var lastRun = TryReadLastRun();
                 if (lastRun != null && !string.IsNullOrWhiteSpace(lastRun.CloseReason) && IsNonGraceful(lastRun.CloseReason))
@@ -292,7 +289,7 @@ namespace SystemActivityTracker.ViewModels
         {
             try
             {
-                var logsFolder = GetLogsFolder();
+                var logsFolder = AppPaths.GetLogsFolder();
                 if (Directory.Exists(logsFolder))
                 {
                     var files = Directory.GetFiles(logsFolder, $"{DailyCloseEventsFilePrefix}*.jsonl", SearchOption.TopDirectoryOnly)
@@ -309,13 +306,13 @@ namespace SystemActivityTracker.ViewModels
                     }
                 }
 
-                var legacy = GetLegacyCloseEventsPath();
+                var legacy = AppPaths.GetLegacyCloseEventsPath();
                 var legacyEvt = TryReadLatestNonGracefulEvent(legacy);
                 return (legacyEvt, legacy);
             }
             catch
             {
-                var legacy = GetLegacyCloseEventsPath();
+                var legacy = AppPaths.GetLegacyCloseEventsPath();
                 return (null, legacy);
             }
         }
@@ -324,7 +321,7 @@ namespace SystemActivityTracker.ViewModels
         {
             try
             {
-                string path = GetLastRunPath();
+                string path = AppPaths.GetLastRunPath();
                 if (!File.Exists(path))
                 {
                     return null;
@@ -338,20 +335,6 @@ namespace SystemActivityTracker.ViewModels
                 return null;
             }
         }
-
-        private static string GetAppFolder()
-        {
-            string baseFolder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string appFolder = Path.Combine(baseFolder, AppFolderName);
-            Directory.CreateDirectory(appFolder);
-            return appFolder;
-        }
-
-        private static string GetLastRunPath() => Path.Combine(GetAppFolder(), LastRunFileName);
-
-        private static string GetLogsFolder() => Path.Combine(GetAppFolder(), LogsFolderName);
-
-        private static string GetLegacyCloseEventsPath() => Path.Combine(GetAppFolder(), CloseEventsFileName);
 
         private sealed class LastRunRecord
         {

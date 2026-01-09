@@ -1,8 +1,12 @@
 ﻿using System;
 using System.Threading.Tasks;
 using System.Windows;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 using SystemActivityTracker.Services;
+using SystemActivityTracker.Services.Abstractions;
+using SystemActivityTracker.Services.Platform;
+using SystemActivityTracker.ViewModels;
 using System.Windows.Threading;
 
 namespace SystemActivityTracker
@@ -12,6 +16,8 @@ namespace SystemActivityTracker
     /// </summary>
     public partial class App : System.Windows.Application
     {
+        public IServiceProvider Services { get; private set; } = null!;
+
         private SessionStateService? _sessionStateService;
         private TrackingService? _trackingService;
         private TrayIconService? _trayIconService;
@@ -30,21 +36,48 @@ namespace SystemActivityTracker
         {
             base.OnStartup(e);
 
-            _settingsService = new SettingsService();
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddSingleton<SettingsService>();
+            serviceCollection.AddSingleton<CloseTrackingService>();
+            serviceCollection.AddSingleton<SessionStateService>();
+
+            serviceCollection.AddSingleton<IClock, SystemClock>();
+            serviceCollection.AddSingleton<IIdleTimeProvider, SystemIdleTimeProvider>();
+            serviceCollection.AddSingleton<IActiveWindowProvider, SystemActiveWindowProvider>();
+            serviceCollection.AddSingleton<IActivityLogWriter, ActivityLogWriter>();
+
+            serviceCollection.AddSingleton<TrackingService>(sp =>
+            {
+                var session = sp.GetRequiredService<SessionStateService>();
+                var settings = sp.GetRequiredService<SettingsService>();
+                return new TrackingService(session, settings);
+            });
+
+            serviceCollection.AddSingleton<IActivityLogReader, ActivityLogReader>();
+            serviceCollection.AddTransient<ManualTaskService>();
+
+            serviceCollection.AddTransient<MainWindowViewModel>(sp =>
+                new MainWindowViewModel(
+                    sp.GetService<TrackingService>(),
+                    sp.GetService<SettingsService>(),
+                    sp.GetRequiredService<IActivityLogReader>(),
+                    sp.GetRequiredService<ManualTaskService>()));
+
+            Services = serviceCollection.BuildServiceProvider();
+
+            _settingsService = Services.GetRequiredService<SettingsService>();
             var settings = _settingsService.Load();
 
-            _closeTrackingService = new CloseTrackingService();
+            _closeTrackingService = Services.GetRequiredService<CloseTrackingService>();
             _closeTrackingService.ApplyCrashLogPolicy(settings.CrashLogRetentionDays, settings.CrashLogMaxSizeMB);
             _closeTrackingService.CleanupCrashLogs();
             RegisterCloseTrackingHooks();
             StartUiHeartbeat();
 
-            _sessionStateService = new SessionStateService();
-            _trackingService = new TrackingService(_sessionStateService, _settingsService);
-            if (_trackingService != null)
-            {
-                _trayIconService = new TrayIconService(this, _trackingService);
-            }
+            _sessionStateService = Services.GetRequiredService<SessionStateService>();
+            _trackingService = Services.GetRequiredService<TrackingService>();
+            _trayIconService = new TrayIconService(this, _trackingService);
 
             SystemEvents.SessionEnding += OnSystemSessionEnding;
         }
@@ -154,6 +187,11 @@ namespace SystemActivityTracker
             _settingsService = null;
             _sessionStateService?.Dispose();
             _sessionStateService = null;
+
+            if (Services is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
             base.OnExit(e);
         }
     }

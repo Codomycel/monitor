@@ -555,7 +555,7 @@
         <Setter Property="Opacity" Value="1"/>
         <Setter Property="Fill" Value="{StaticResource TextSecondaryBrush}"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding TrackingStatus}" Value="Tracking status: Running">
+            <DataTrigger Binding="{Binding IsTrackingRunning}" Value="True">
                 <Setter Property="Fill" Value="{StaticResource SuccessBrush}"/>
                 <DataTrigger.EnterActions>
                     <BeginStoryboard Name="PulseStoryboard">
@@ -570,7 +570,7 @@
                     <StopStoryboard BeginStoryboardName="PulseStoryboard"/>
                 </DataTrigger.ExitActions>
             </DataTrigger>
-            <DataTrigger Binding="{Binding TrackingStatus}" Value="Tracking status: Stopped">
+            <DataTrigger Binding="{Binding IsTrackingRunning}" Value="False">
                 <Setter Property="Fill" Value="{StaticResource ErrorBrush}"/>
                 <Setter Property="Opacity" Value="1"/>
                 <Setter Property="RenderTransform">
@@ -592,7 +592,7 @@
         <Setter Property="Opacity" Value="1"/>
         <Setter Property="Fill" Value="{StaticResource TextSecondaryBrush}"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding TrackingStatus}" Value="Tracking status: Running">
+            <DataTrigger Binding="{Binding IsTrackingRunning}" Value="True">
                 <Setter Property="Fill" Value="{StaticResource SuccessBrush}"/>
                 <DataTrigger.EnterActions>
                     <BeginStoryboard Name="PulseStoryboard">
@@ -607,7 +607,7 @@
                     <StopStoryboard BeginStoryboardName="PulseStoryboard"/>
                 </DataTrigger.ExitActions>
             </DataTrigger>
-            <DataTrigger Binding="{Binding TrackingStatus}" Value="Tracking status: Stopped">
+            <DataTrigger Binding="{Binding IsTrackingRunning}" Value="False">
                 <Setter Property="Fill" Value="{StaticResource ErrorBrush}"/>
                 <Setter Property="Opacity" Value="1"/>
                 <Setter Property="RenderTransform">

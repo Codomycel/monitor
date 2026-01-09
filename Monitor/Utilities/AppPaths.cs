@@ -7,6 +7,9 @@ namespace SystemActivityTracker.Utilities
     {
         private const string AppFolderName = "SystemActivityTracker";
         private const string LogsFolderName = "logs";
+        private const string LastRunFileName = "LastRun.json";
+        private const string LegacyCloseEventsFileName = "close-events.jsonl";
+        private const string DailyCloseEventsFilePrefix = "close-events-";
 
         public static string GetAppFolder()
         {
@@ -21,6 +24,18 @@ namespace SystemActivityTracker.Utilities
             string logsFolder = Path.Combine(GetAppFolder(), LogsFolderName);
             Directory.CreateDirectory(logsFolder);
             return logsFolder;
+        }
+
+        public static string GetLastRunPath() => Path.Combine(GetAppFolder(), LastRunFileName);
+
+        public static string GetLegacyCloseEventsPath() => Path.Combine(GetAppFolder(), LegacyCloseEventsFileName);
+
+        public static string GetDailyCloseEventsFilePrefix() => DailyCloseEventsFilePrefix;
+
+        public static string GetDailyCloseEventsPath(DateTime date)
+        {
+            string name = $"{DailyCloseEventsFilePrefix}{date:yyyy-MM-dd}.jsonl";
+            return Path.Combine(GetLogsFolder(), name);
         }
 
         public static string GetSettingsPath() => Path.Combine(GetAppFolder(), "settings.json");

@@ -18,7 +18,7 @@ namespace SystemActivityTracker.ViewModels
         private readonly TrackingService? _trackingService;
         private readonly SettingsService? _settingsService;
         private readonly IActivityLogReader _activityLogReader;
-        private readonly ManualTaskService _manualTaskService = new ManualTaskService();
+        private readonly ManualTaskService _manualTaskService;
         private string _trackingStatus = "Tracking status: Stopped";
         private TimeSpan _totalActiveTimeToday;
         private TimeSpan _totalIdleTimeToday;
@@ -68,11 +68,16 @@ namespace SystemActivityTracker.ViewModels
 
         public LastCrashViewModel LastCrash { get; }
 
-        public MainWindowViewModel(TrackingService? trackingService, SettingsService? settingsService = null)
+        public MainWindowViewModel(
+            TrackingService? trackingService,
+            SettingsService? settingsService = null,
+            IActivityLogReader? activityLogReader = null,
+            ManualTaskService? manualTaskService = null)
         {
             _trackingService = trackingService;
             _settingsService = settingsService;
-            _activityLogReader = new ActivityLogReader();
+            _activityLogReader = activityLogReader ?? new ActivityLogReader();
+            _manualTaskService = manualTaskService ?? new ManualTaskService();
 
             LastCrash = new LastCrashViewModel();
             TodayText = DateTime.Now.ToString("dddd, dd MMMM yyyy");
@@ -230,6 +235,7 @@ namespace SystemActivityTracker.ViewModels
 
             _trackingService.Start();
             TrackingStatus = "Tracking status: Running";
+            OnPropertyChanged(nameof(IsTrackingRunning));
             StartRunningTimerTicker();
             ApplyLiveRefreshSettings();
         }
@@ -244,6 +250,7 @@ namespace SystemActivityTracker.ViewModels
             if (!_trackingService.IsRunning)
             {
                 TrackingStatus = "Tracking status: Stopped";
+                OnPropertyChanged(nameof(IsTrackingRunning));
                 StopRunningTimerTicker();
                 _autoRefreshTimer.Stop();
                 return;
@@ -251,6 +258,7 @@ namespace SystemActivityTracker.ViewModels
 
             _trackingService.Stop();
             TrackingStatus = "Tracking status: Stopped";
+            OnPropertyChanged(nameof(IsTrackingRunning));
             StopRunningTimerTicker();
             ApplyLiveRefreshSettings();
         }
@@ -479,9 +487,12 @@ namespace SystemActivityTracker.ViewModels
                 {
                     _trackingStatus = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsTrackingRunning));
                 }
             }
         }
+
+        public bool IsTrackingRunning => _trackingService != null && _trackingService.IsRunning;
 
         public DateTime SelectedMonth
         {

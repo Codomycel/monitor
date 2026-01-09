@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
+using Microsoft.Extensions.DependencyInjection;
 using SystemActivityTracker.ViewModels;
 
 namespace SystemActivityTracker.Views
@@ -13,9 +14,17 @@ namespace SystemActivityTracker.Views
         public MainWindow()
         {
             InitializeComponent();
-            if (System.Windows.Application.Current is App app && app.TrackingService is { } trackingService)
+
+            if (System.Windows.Application.Current is App app)
             {
-                DataContext = new MainWindowViewModel(trackingService, app.SettingsService);
+                try
+                {
+                    DataContext = app.Services.GetRequiredService<MainWindowViewModel>();
+                }
+                catch
+                {
+                    DataContext = new MainWindowViewModel(app.TrackingService, app.SettingsService);
+                }
             }
             else
             {

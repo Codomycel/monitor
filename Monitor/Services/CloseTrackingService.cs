@@ -3,15 +3,12 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
+using SystemActivityTracker.Utilities;
 
 namespace SystemActivityTracker.Services
 {
     public sealed class CloseTrackingService : IDisposable
     {
-        private const string AppFolderName = "SystemActivityTracker";
-        private const string LastRunFileName = "LastRun.json";
-        private const string CloseEventsFileName = "close-events.jsonl";
-        private const string LogsFolderName = "logs";
         private const string DailyCloseEventsFilePrefix = "close-events-";
 
         private readonly object _gate = new object();
@@ -65,7 +62,7 @@ namespace SystemActivityTracker.Services
         {
             try
             {
-                string folder = GetLogsFolder();
+                string folder = AppPaths.GetLogsFolder();
                 if (!Directory.Exists(folder))
                 {
                     return;
@@ -99,7 +96,7 @@ namespace SystemActivityTracker.Services
         {
             try
             {
-                string folder = GetLogsFolder();
+                string folder = AppPaths.GetLogsFolder();
                 if (!Directory.Exists(folder))
                 {
                     return;
@@ -361,7 +358,7 @@ namespace SystemActivityTracker.Services
                 };
 
                 string json = JsonSerializer.Serialize(record, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(GetLastRunPath(), json);
+                File.WriteAllText(AppPaths.GetLastRunPath(), json);
             }
             catch
             {
@@ -372,7 +369,7 @@ namespace SystemActivityTracker.Services
         {
             try
             {
-                string path = GetLastRunPath();
+                string path = AppPaths.GetLastRunPath();
                 if (!File.Exists(path))
                 {
                     return null;
@@ -387,28 +384,10 @@ namespace SystemActivityTracker.Services
             }
         }
 
-        private static string GetAppFolder()
-        {
-            string baseFolder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string appFolder = Path.Combine(baseFolder, AppFolderName);
-            Directory.CreateDirectory(appFolder);
-            return appFolder;
-        }
-
-        private static string GetLastRunPath() => Path.Combine(GetAppFolder(), LastRunFileName);
-
-        private static string GetLogsFolder()
-        {
-            string folder = Path.Combine(GetAppFolder(), LogsFolderName);
-            Directory.CreateDirectory(folder);
-            return folder;
-        }
-
         private static string GetDailyCloseEventsPath()
         {
             var date = DateTime.Now.Date;
-            string name = $"{DailyCloseEventsFilePrefix}{date:yyyy-MM-dd}.jsonl";
-            return Path.Combine(GetLogsFolder(), name);
+            return AppPaths.GetDailyCloseEventsPath(date);
         }
 
         private void EnforceMaxSize(string logsFolder)
