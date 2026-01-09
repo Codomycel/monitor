@@ -12,7 +12,7 @@ namespace SystemActivityTracker.Services
         private readonly SessionStateService _sessionStateService;
         private readonly ActivityLogWriter _logWriter = new ActivityLogWriter();
         private readonly System.Timers.Timer _timer;
-        private TimeSpan _idleThreshold = TimeSpan.FromMinutes(2);
+        private TimeSpan _idleThreshold = TimeSpan.FromSeconds(300);
         private AppSettings _settings;
         private readonly object _syncRoot = new object();
 
@@ -45,7 +45,7 @@ namespace SystemActivityTracker.Services
             _settings = settingsService?.Load() ?? new AppSettings();
             if (_settings.IdleThresholdMinutes <= 0)
             {
-                _settings.IdleThresholdMinutes = 2;
+                _settings.IdleThresholdMinutes = 5;
             }
 
             if (_settings.PollIntervalSeconds <= 0)
@@ -132,7 +132,7 @@ namespace SystemActivityTracker.Services
 
             if (settings.IdleThresholdMinutes <= 0)
             {
-                settings.IdleThresholdMinutes = 2;
+                settings.IdleThresholdMinutes = 5;
             }
             if (settings.PollIntervalSeconds <= 0)
             {

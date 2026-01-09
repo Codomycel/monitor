@@ -139,7 +139,7 @@ namespace SystemActivityTracker.ViewModels
 
             // Load settings for UI
             var settings = _settingsService?.Load() ?? new AppSettings();
-            if (settings.IdleThresholdMinutes <= 0) settings.IdleThresholdMinutes = 2;
+            if (settings.IdleThresholdMinutes <= 0) settings.IdleThresholdMinutes = 5;
             if (settings.PollIntervalSeconds <= 0) settings.PollIntervalSeconds = 5;
             if (settings.LiveRefreshIntervalSeconds <= 0) settings.LiveRefreshIntervalSeconds = 30;
 
