@@ -44,8 +44,9 @@ namespace SystemActivityTracker.Services
 
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"[ActiveWindow] TryGetActiveWindow failed: {ex}");
                 return false;
             }
         }

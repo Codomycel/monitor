@@ -3,13 +3,13 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using SystemActivityTracker.Models;
+using SystemActivityTracker.Services.Abstractions;
+using SystemActivityTracker.Utilities;
 
 namespace SystemActivityTracker.Services
 {
-    public class ActivityLogWriter
+    public class ActivityLogWriter : IActivityLogWriter
     {
-        private const string AppFolderName = "SystemActivityTracker";
-
         public void AppendRecord(ActivityRecord record)
         {
             if (record.StartTime == default)
@@ -17,12 +17,7 @@ namespace SystemActivityTracker.Services
                 return;
             }
 
-            string baseFolder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string appFolder = Path.Combine(baseFolder, AppFolderName);
-            Directory.CreateDirectory(appFolder);
-
-            string fileName = $"activity-log-{record.StartTime:yyyy-MM-dd}.csv";
-            string filePath = Path.Combine(appFolder, fileName);
+            string filePath = AppPaths.GetActivityLogCsvPath(record.StartTime);
 
             bool fileExists = File.Exists(filePath);
 

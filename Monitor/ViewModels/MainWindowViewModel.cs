@@ -2,13 +2,13 @@ using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using System.Windows.Threading;
 using SystemActivityTracker.Models;
 using SystemActivityTracker.Services;
+using SystemActivityTracker.Services.Abstractions;
 using SystemActivityTracker.Utilities;
 
 namespace SystemActivityTracker.ViewModels
@@ -17,6 +17,7 @@ namespace SystemActivityTracker.ViewModels
     {
         private readonly TrackingService? _trackingService;
         private readonly SettingsService? _settingsService;
+        private readonly IActivityLogReader _activityLogReader;
         private readonly ManualTaskService _manualTaskService = new ManualTaskService();
         private string _trackingStatus = "Tracking status: Stopped";
         private TimeSpan _totalActiveTimeToday;
@@ -71,6 +72,7 @@ namespace SystemActivityTracker.ViewModels
         {
             _trackingService = trackingService;
             _settingsService = settingsService;
+            _activityLogReader = new ActivityLogReader();
 
             LastCrash = new LastCrashViewModel();
             TodayText = DateTime.Now.ToString("dddd, dd MMMM yyyy");
@@ -380,66 +382,20 @@ namespace SystemActivityTracker.ViewModels
             TickHeaderActiveTimer();
         }
 
-        private static TimeSpan ComputeActiveTotalForDate(DateTime date)
+        private TimeSpan ComputeActiveTotalForDate(DateTime date)
         {
-            string baseFolder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string appFolder = Path.Combine(baseFolder, "SystemActivityTracker");
-            string fileName = $"activity-log-{date:yyyy-MM-dd}.csv";
-            string filePath = Path.Combine(appFolder, fileName);
+            TimeSpan totalActive = TimeSpan.Zero;
 
-            if (!File.Exists(filePath))
+            if (!_activityLogReader.TryReadDay(date.Date, out var entries))
             {
                 return TimeSpan.Zero;
             }
 
-            TimeSpan totalActive = TimeSpan.Zero;
-
-            foreach (var line in File.ReadLines(filePath))
+            foreach (var entry in entries)
             {
-                if (string.IsNullOrWhiteSpace(line))
+                if (!entry.IsLocked && !entry.IsIdle)
                 {
-                    continue;
-                }
-
-                if (line.StartsWith("StartTime", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                var fields = ParseCsvLine(line);
-                if (fields.Length < 6)
-                {
-                    continue;
-                }
-
-                if (!DateTime.TryParse(fields[0], null, DateTimeStyles.RoundtripKind, out var start))
-                {
-                    continue;
-                }
-
-                if (!DateTime.TryParse(fields[1], null, DateTimeStyles.RoundtripKind, out var end))
-                {
-                    continue;
-                }
-
-                if (!bool.TryParse(fields[4], out var isLocked))
-                {
-                    continue;
-                }
-
-                if (!bool.TryParse(fields[5], out var isIdle))
-                {
-                    continue;
-                }
-
-                if (end < start)
-                {
-                    continue;
-                }
-
-                if (!isLocked && !isIdle)
-                {
-                    totalActive += end - start;
+                    totalActive += entry.EndTime - entry.StartTime;
                 }
             }
 
@@ -714,6 +670,43 @@ namespace SystemActivityTracker.ViewModels
             OnPropertyChanged(nameof(WeekRangeText));
         }
 
+        private void NotifyManualTotalsChanged()
+        {
+            OnPropertyChanged(nameof(ManualTotalText));
+            OnPropertyChanged(nameof(GrandTotalText));
+            OnPropertyChanged(nameof(SelectedDayManualTasksText));
+            OnPropertyChanged(nameof(SelectedDayTotalActiveText));
+            OnPropertyChanged(nameof(MonthlyManualTasksText));
+            OnPropertyChanged(nameof(MonthlyTotalActiveText));
+        }
+
+        private void ResetManualEditState()
+        {
+            SelectedManualTask = null;
+            IsManualEditMode = false;
+        }
+
+        private void NotifySelectedDaySummaryTextsChanged()
+        {
+            OnPropertyChanged(nameof(SelectedDayActiveTrackedText));
+            OnPropertyChanged(nameof(SelectedDayIdleText));
+            OnPropertyChanged(nameof(SelectedDayLockedText));
+            OnPropertyChanged(nameof(SelectedDayStartText));
+            OnPropertyChanged(nameof(SelectedDayEndText));
+        }
+
+        private bool IsSelectedDateInCurrentWeek()
+        {
+            var weekStart = WeekStartDate.Date;
+            var weekEnd = weekStart.AddDays(6);
+            return SelectedDate.Date >= weekStart && SelectedDate.Date <= weekEnd;
+        }
+
+        private bool IsSelectedDateInSelectedMonth()
+        {
+            return SelectedDate.Year == SelectedMonth.Year && SelectedDate.Month == SelectedMonth.Month;
+        }
+
         private void LoadMonthlyUsage()
         {
             _monthlyAppUsage.Clear();
@@ -721,66 +714,19 @@ namespace SystemActivityTracker.ViewModels
             var start = new DateTime(SelectedMonth.Year, SelectedMonth.Month, 1);
             var end = start.AddMonths(1).AddDays(-1);
 
-            string baseFolder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string appFolder = Path.Combine(baseFolder, "SystemActivityTracker");
-
             var perProcess = new System.Collections.Generic.Dictionary<string, (TimeSpan Active, TimeSpan Idle, TimeSpan Locked)>(StringComparer.OrdinalIgnoreCase);
 
             for (var date = start; date <= end; date = date.AddDays(1))
             {
-                string fileName = $"activity-log-{date:yyyy-MM-dd}.csv";
-                string filePath = Path.Combine(appFolder, fileName);
-
-                if (!File.Exists(filePath))
+                if (!_activityLogReader.TryReadDay(date.Date, out var entries))
                 {
                     continue;
                 }
 
-                foreach (var line in File.ReadLines(filePath))
+                foreach (var entry in entries)
                 {
-                    if (string.IsNullOrWhiteSpace(line))
-                    {
-                        continue;
-                    }
-
-                    if (line.StartsWith("StartTime", StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-
-                    var fields = ParseCsvLine(line);
-                    if (fields.Length < 6)
-                    {
-                        continue;
-                    }
-
-                    if (!DateTime.TryParse(fields[0], null, DateTimeStyles.RoundtripKind, out var startTime))
-                    {
-                        continue;
-                    }
-
-                    if (!DateTime.TryParse(fields[1], null, DateTimeStyles.RoundtripKind, out var endTime))
-                    {
-                        continue;
-                    }
-
-                    if (!bool.TryParse(fields[4], out var isLocked))
-                    {
-                        continue;
-                    }
-
-                    if (!bool.TryParse(fields[5], out var isIdle))
-                    {
-                        continue;
-                    }
-
-                    if (endTime < startTime)
-                    {
-                        continue;
-                    }
-
-                    var duration = endTime - startTime;
-                    string processName = fields.Length > 2 ? fields[2] : string.Empty;
+                    var duration = entry.EndTime - entry.StartTime;
+                    string processName = entry.ProcessName;
                     if (string.IsNullOrWhiteSpace(processName))
                     {
                         processName = "(Unknown)";
@@ -791,11 +737,11 @@ namespace SystemActivityTracker.ViewModels
                         totals = (TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero);
                     }
 
-                    if (isLocked)
+                    if (entry.IsLocked)
                     {
                         totals.Locked += duration;
                     }
-                    else if (isIdle)
+                    else if (entry.IsIdle)
                     {
                         totals.Idle += duration;
                     }
@@ -1192,14 +1138,8 @@ namespace SystemActivityTracker.ViewModels
             if (!IsDayDetailsMode)
             {
                 _manualTasks.Clear();
-                SelectedManualTask = null;
-                IsManualEditMode = false;
-                OnPropertyChanged(nameof(ManualTotalText));
-                OnPropertyChanged(nameof(GrandTotalText));
-                OnPropertyChanged(nameof(SelectedDayManualTasksText));
-                OnPropertyChanged(nameof(SelectedDayTotalActiveText));
-                OnPropertyChanged(nameof(MonthlyManualTasksText));
-                OnPropertyChanged(nameof(MonthlyTotalActiveText));
+                ResetManualEditState();
+                NotifyManualTotalsChanged();
                 return;
             }
 
@@ -1209,14 +1149,8 @@ namespace SystemActivityTracker.ViewModels
                 _manualTasks.Add(item);
             }
 
-            SelectedManualTask = null;
-            IsManualEditMode = false;
-            OnPropertyChanged(nameof(ManualTotalText));
-            OnPropertyChanged(nameof(GrandTotalText));
-            OnPropertyChanged(nameof(SelectedDayManualTasksText));
-            OnPropertyChanged(nameof(SelectedDayTotalActiveText));
-            OnPropertyChanged(nameof(MonthlyManualTasksText));
-            OnPropertyChanged(nameof(MonthlyTotalActiveText));
+            ResetManualEditState();
+            NotifyManualTotalsChanged();
         }
 
         private void PersistManualTasks()
@@ -1231,23 +1165,16 @@ namespace SystemActivityTracker.ViewModels
             // Update cached manual duration immediately so Total Active reflects edits without reopening.
             _selectedDayManualDuration = TimeSpan.FromSeconds(_manualTasks.Sum(t => Math.Max(0, t.TotalSeconds)));
 
-            OnPropertyChanged(nameof(ManualTotalText));
-            OnPropertyChanged(nameof(GrandTotalText));
-            OnPropertyChanged(nameof(SelectedDayManualTasksText));
-            OnPropertyChanged(nameof(SelectedDayTotalActiveText));
-            OnPropertyChanged(nameof(MonthlyManualTasksText));
-            OnPropertyChanged(nameof(MonthlyTotalActiveText));
+            NotifyManualTotalsChanged();
 
             // Recompute week totals/list if the selected day is within the currently displayed week.
-            var weekStart = WeekStartDate.Date;
-            var weekEnd = weekStart.AddDays(6);
-            if (SelectedDate.Date >= weekStart && SelectedDate.Date <= weekEnd)
+            if (IsSelectedDateInCurrentWeek())
             {
                 LoadWeeklySummary();
             }
 
             // Refresh month rollups if the selected day is within the currently selected month.
-            if (SelectedDate.Year == SelectedMonth.Year && SelectedDate.Month == SelectedMonth.Month)
+            if (IsSelectedDateInSelectedMonth())
             {
                 OnPropertyChanged(nameof(MonthlyActiveTrackedText));
                 OnPropertyChanged(nameof(MonthlyManualTasksText));
@@ -1415,51 +1342,19 @@ namespace SystemActivityTracker.ViewModels
             _selectedDayEndTime = null;
             _selectedDayManualDuration = TimeSpan.Zero;
 
-            string baseFolder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string appFolder = Path.Combine(baseFolder, "SystemActivityTracker");
-            string fileName = $"activity-log-{SelectedDate:yyyy-MM-dd}.csv";
-            string filePath = Path.Combine(appFolder, fileName);
-
-            if (!File.Exists(filePath))
+            if (!_activityLogReader.TryReadDay(SelectedDate.Date, out var entries))
             {
                 RefreshSelectedDayManualDuration();
-                OnPropertyChanged(nameof(SelectedDayActiveTrackedText));
-                OnPropertyChanged(nameof(SelectedDayIdleText));
-                OnPropertyChanged(nameof(SelectedDayLockedText));
-                OnPropertyChanged(nameof(SelectedDayStartText));
-                OnPropertyChanged(nameof(SelectedDayEndText));
+                NotifySelectedDaySummaryTextsChanged();
                 return;
             }
 
             var perProcessDurations = new System.Collections.Generic.Dictionary<string, TimeSpan>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var line in File.ReadLines(filePath))
+            foreach (var entry in entries)
             {
-                if (string.IsNullOrWhiteSpace(line))
-                {
-                    continue;
-                }
-
-                if (line.StartsWith("StartTime", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue; // header
-                }
-
-                var fields = ParseCsvLine(line);
-                if (fields.Length < 6)
-                {
-                    continue;
-                }
-
-                if (!DateTime.TryParse(fields[0], null, DateTimeStyles.RoundtripKind, out var start))
-                {
-                    continue;
-                }
-
-                if (!DateTime.TryParse(fields[1], null, DateTimeStyles.RoundtripKind, out var end))
-                {
-                    continue;
-                }
+                var start = entry.StartTime;
+                var end = entry.EndTime;
 
                 if (!_selectedDayStartTime.HasValue || start < _selectedDayStartTime.Value)
                 {
@@ -1471,28 +1366,13 @@ namespace SystemActivityTracker.ViewModels
                     _selectedDayEndTime = end;
                 }
 
-                if (!bool.TryParse(fields[4], out var isLocked))
-                {
-                    continue;
-                }
-
-                if (!bool.TryParse(fields[5], out var isIdle))
-                {
-                    continue;
-                }
-
-                if (end < start)
-                {
-                    continue;
-                }
-
                 var duration = end - start;
 
-                if (isLocked)
+                if (entry.IsLocked)
                 {
                     TotalLockedTimeToday += duration;
                 }
-                else if (isIdle)
+                else if (entry.IsIdle)
                 {
                     TotalIdleTimeToday += duration;
                 }
@@ -1500,7 +1380,7 @@ namespace SystemActivityTracker.ViewModels
                 {
                     TotalActiveTimeToday += duration;
 
-                    string processName = fields.Length > 2 ? fields[2] : string.Empty;
+                    string processName = entry.ProcessName;
                     if (!string.IsNullOrEmpty(processName))
                     {
                         if (perProcessDurations.TryGetValue(processName, out var existing))
@@ -1526,11 +1406,7 @@ namespace SystemActivityTracker.ViewModels
 
             // Ensure labeled summary text updates even if totals did not change
             RefreshSelectedDayManualDuration();
-            OnPropertyChanged(nameof(SelectedDayActiveTrackedText));
-            OnPropertyChanged(nameof(SelectedDayIdleText));
-            OnPropertyChanged(nameof(SelectedDayLockedText));
-            OnPropertyChanged(nameof(SelectedDayStartText));
-            OnPropertyChanged(nameof(SelectedDayEndText));
+            NotifySelectedDaySummaryTextsChanged();
         }
 
         private void RefreshSelectedDaySummary()
@@ -1553,114 +1429,31 @@ namespace SystemActivityTracker.ViewModels
             return string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}", (int)value.TotalHours, value.Minutes);
         }
 
-        private static string[] ParseCsvLine(string line)
-        {
-            var result = new System.Collections.Generic.List<string>();
-            bool inQuotes = false;
-            var current = new System.Text.StringBuilder();
-
-            for (int i = 0; i < line.Length; i++)
-            {
-                char c = line[i];
-                if (c == '"')
-                {
-                    if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
-                    {
-                        current.Append('"');
-                        i++;
-                    }
-                    else
-                    {
-                        inQuotes = !inQuotes;
-                    }
-                }
-                else if (c == ',' && !inQuotes)
-                {
-                    result.Add(current.ToString());
-                    current.Clear();
-                }
-                else
-                {
-                    current.Append(c);
-                }
-            }
-
-            result.Add(current.ToString());
-            return result.ToArray();
-        }
-
         public void LoadWeeklySummary()
         {
             _weeklySummaries.Clear();
 
             UpdateWeekHeaderTexts();
 
-            string baseFolder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string appFolder = Path.Combine(baseFolder, "SystemActivityTracker");
-
             for (int i = 0; i < 7; i++)
             {
                 DateTime date = WeekStartDate.Date.AddDays(i);
-                string fileName = $"activity-log-{date:yyyy-MM-dd}.csv";
-                string filePath = Path.Combine(appFolder, fileName);
 
                 TimeSpan active = TimeSpan.Zero;
                 TimeSpan idle = TimeSpan.Zero;
                 TimeSpan locked = TimeSpan.Zero;
                 TimeSpan manual = TimeSpan.FromSeconds(GetManualSecondsForDate(date.Date));
 
-                if (File.Exists(filePath))
+                if (_activityLogReader.TryReadDay(date.Date, out var entries))
                 {
-                    foreach (var line in File.ReadLines(filePath))
+                    foreach (var entry in entries)
                     {
-                        if (string.IsNullOrWhiteSpace(line))
-                        {
-                            continue;
-                        }
-
-                        if (line.StartsWith("StartTime", StringComparison.OrdinalIgnoreCase))
-                        {
-                            continue;
-                        }
-
-                        var fields = ParseCsvLine(line);
-                        if (fields.Length < 6)
-                        {
-                            continue;
-                        }
-
-                        if (!DateTime.TryParse(fields[0], null, DateTimeStyles.RoundtripKind, out var start))
-                        {
-                            continue;
-                        }
-
-                        if (!DateTime.TryParse(fields[1], null, DateTimeStyles.RoundtripKind, out var end))
-                        {
-                            continue;
-                        }
-
-                        if (!bool.TryParse(fields[4], out var isLocked))
-                        {
-                            continue;
-                        }
-
-                        if (!bool.TryParse(fields[5], out var isIdle))
-                        {
-                            continue;
-                        }
-
-                        if (end < start)
-                        {
-                            continue;
-                        }
-
-                        var duration = end - start;
-
-                        if (isLocked)
+                        var duration = entry.EndTime - entry.StartTime;
+                        if (entry.IsLocked)
                         {
                             locked += duration;
                         }
-                        else if (isIdle)
+                        else if (entry.IsIdle)
                         {
                             idle += duration;
                         }

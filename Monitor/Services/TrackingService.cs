@@ -4,13 +4,18 @@ using System.Diagnostics;
 using System.Timers;
 using Microsoft.Win32;
 using SystemActivityTracker.Models;
+using SystemActivityTracker.Services.Abstractions;
+using SystemActivityTracker.Services.Platform;
 
 namespace SystemActivityTracker.Services
 {
     public class TrackingService : IDisposable
     {
         private readonly SessionStateService _sessionStateService;
-        private readonly ActivityLogWriter _logWriter = new ActivityLogWriter();
+        private readonly IClock _clock;
+        private readonly IIdleTimeProvider _idleTimeProvider;
+        private readonly IActiveWindowProvider _activeWindowProvider;
+        private readonly IActivityLogWriter _logWriter;
         private readonly System.Timers.Timer _timer;
         private TimeSpan _idleThreshold = TimeSpan.FromSeconds(300);
         private AppSettings _settings;
@@ -32,14 +37,36 @@ namespace SystemActivityTracker.Services
         public bool IsRunning => _isRunning;
 
         public TrackingService(SessionStateService sessionStateService, SettingsService? settingsService = null)
+            : this(
+                sessionStateService,
+                settingsService,
+                new SystemClock(),
+                new SystemIdleTimeProvider(),
+                new SystemActiveWindowProvider(),
+                new ActivityLogWriter())
+        {
+        }
+
+        internal TrackingService(
+            SessionStateService sessionStateService,
+            SettingsService? settingsService,
+            IClock clock,
+            IIdleTimeProvider idleTimeProvider,
+            IActiveWindowProvider activeWindowProvider,
+            IActivityLogWriter logWriter)
         {
             _sessionStateService = sessionStateService ?? throw new ArgumentNullException(nameof(sessionStateService));
+            _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+            _idleTimeProvider = idleTimeProvider ?? throw new ArgumentNullException(nameof(idleTimeProvider));
+            _activeWindowProvider = activeWindowProvider ?? throw new ArgumentNullException(nameof(activeWindowProvider));
+            _logWriter = logWriter ?? throw new ArgumentNullException(nameof(logWriter));
+
             _sessionStateService.LockStateChanged += OnLockStateChanged;
             _sessionStateService.LockEvent += OnLockEvent;
 
             SystemEvents.PowerModeChanged += OnPowerModeChanged;
 
-            _currentLogDate = DateTime.Now.Date;
+            _currentLogDate = _clock.Now.Date;
 
             // Load settings (or use defaults)
             _settings = settingsService?.Load() ?? new AppSettings();
@@ -103,7 +130,7 @@ namespace SystemActivityTracker.Services
                     return;
                 }
 
-                DateTime now = DateTime.Now;
+                DateTime now = _clock.Now;
 
                 if (e.Mode == PowerModes.Suspend)
                 {
@@ -168,7 +195,7 @@ namespace SystemActivityTracker.Services
 
             lock (_syncRoot)
             {
-                DateTime now = DateTime.Now;
+                DateTime now = _clock.Now;
                 HandleDayRolloverIfNeeded(now);
                 FinalizeCurrentRecordAt(now);
                 _currentRecord = null;
@@ -184,7 +211,7 @@ namespace SystemActivityTracker.Services
                     return;
                 }
 
-                DateTime now = DateTime.Now;
+                DateTime now = _clock.Now;
 
                 if (_isSuspended)
                 {
@@ -225,7 +252,7 @@ namespace SystemActivityTracker.Services
                     _isRunning = false;
                 }
 
-                DateTime now = DateTime.Now;
+                DateTime now = _clock.Now;
                 LogSystemEvent("SHUTDOWN", now);
                 HandleDayRolloverIfNeeded(now);
                 FinalizeCurrentRecordAt(now);
@@ -237,7 +264,7 @@ namespace SystemActivityTracker.Services
         {
             lock (_syncRoot)
             {
-                DateTime now = DateTime.Now;
+                DateTime now = _clock.Now;
                 LogSystemEvent("SESSION_ENDING", now);
 
                 HandleDayRolloverIfNeeded(now);
@@ -257,7 +284,7 @@ namespace SystemActivityTracker.Services
 
         private void UpdateActivityState()
         {
-            DateTime now = DateTime.Now;
+            DateTime now = _clock.Now;
 
             if (_isSuspended)
             {
@@ -279,7 +306,7 @@ namespace SystemActivityTracker.Services
             }
             else
             {
-                var idleTime = IdleTimeHelper.GetIdleTime();
+                var idleTime = _idleTimeProvider.GetIdleTime();
                 if (idleTime > _idleThreshold)
                 {
                     isIdle = true;
@@ -289,7 +316,7 @@ namespace SystemActivityTracker.Services
                 else
                 {
                     isIdle = false;
-                    if (!ActiveWindowHelper.TryGetActiveWindow(out processName, out windowTitle))
+                    if (!_activeWindowProvider.TryGetActiveWindow(out processName, out windowTitle))
                     {
                         processName = string.Empty;
                         windowTitle = string.Empty;
@@ -529,11 +556,6 @@ namespace SystemActivityTracker.Services
 
             _isDisposed = true;
             GC.SuppressFinalize(this);
-        }
-
-        ~TrackingService()
-        {
-            Dispose();
         }
     }
 }

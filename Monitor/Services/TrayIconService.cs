@@ -111,10 +111,5 @@ namespace SystemActivityTracker.Services
             _disposed = true;
             GC.SuppressFinalize(this);
         }
-
-        ~TrayIconService()
-        {
-            Dispose();
-        }
     }
 }
