@@ -3,17 +3,18 @@ using System.Windows;
 using System.Windows.Input;
 using Microsoft.Extensions.DependencyInjection;
 using SystemActivityTracker.Models;
+using SystemActivityTracker.Utilities;
 using SystemActivityTracker.ViewModels;
 
 namespace SystemActivityTracker.Views
 {
-    public partial class ClassicMainWindow : Window
+    public partial class UiBMainWindow : Window
     {
         private bool _isExplicitExit;
         private bool _didInitialRefresh;
         private bool _isUiSwap;
 
-        public ClassicMainWindow()
+        public UiBMainWindow()
         {
             InitializeComponent();
 
@@ -45,10 +46,10 @@ namespace SystemActivityTracker.Views
                 DataContext = new MainWindowViewModel(null, null);
             }
 
-            Loaded += ClassicMainWindow_Loaded;
+            Loaded += UiBMainWindow_Loaded;
         }
 
-        private void ClassicMainWindow_Loaded(object sender, RoutedEventArgs e)
+        private void UiBMainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             if (_didInitialRefresh)
             {
@@ -156,7 +157,18 @@ namespace SystemActivityTracker.Views
                 return;
             }
 
-            if (combo.SelectedItem is not System.Windows.Controls.ComboBoxItem item || item.Content is not string mode)
+            if (combo.SelectedItem is not System.Windows.Controls.ComboBoxItem item)
+            {
+                return;
+            }
+
+            if (item.Tag is not string mode || string.IsNullOrWhiteSpace(mode))
+            {
+                return;
+            }
+
+            if (!string.Equals(mode, UiModes.UIA, System.StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(mode, UiModes.UIB, System.StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
@@ -212,8 +224,8 @@ namespace SystemActivityTracker.Views
         {
             foreach (var obj in comboBox.Items)
             {
-                if (obj is System.Windows.Controls.ComboBoxItem item && item.Content is string content &&
-                    string.Equals(content, mode, System.StringComparison.OrdinalIgnoreCase))
+                if (obj is System.Windows.Controls.ComboBoxItem item && item.Tag is string tag &&
+                    string.Equals(tag, mode, System.StringComparison.OrdinalIgnoreCase))
                 {
                     comboBox.SelectedItem = item;
                     return;

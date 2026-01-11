@@ -32,8 +32,8 @@ namespace SystemActivityTracker.Services
         public string? LastExceptionMessage { get; private set; }
         public string? LastExceptionStackTrace { get; private set; }
 
-        public int CrashLogRetentionDays { get; private set; } = 14;
-        public int CrashLogMaxSizeMB { get; private set; } = 50;
+        public int CrashLogRetentionDays { get; private set; } = AppConstants.Defaults.CrashLogRetentionDays;
+        public int CrashLogMaxSizeMB { get; private set; } = AppConstants.Defaults.CrashLogMaxSizeMB;
 
         public CloseTrackingService()
         {
@@ -42,17 +42,21 @@ namespace SystemActivityTracker.Services
             TryDetectAndLogUnexpectedPreviousTermination();
             WriteLastRun(isRunning: true, endUtc: null, endType: null, closeReason: null);
 
-            _heartbeatTimer = new System.Threading.Timer(_ => SafeUpdateHeartbeat(), null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(20));
-            _hangMonitorTimer = new System.Threading.Timer(_ => SafeCheckHang(), null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+            _heartbeatTimer = new System.Threading.Timer(_ => SafeUpdateHeartbeat(), null,
+                TimeSpan.FromSeconds(AppConstants.Time.UiHeartbeatInitialDelaySeconds),
+                TimeSpan.FromSeconds(AppConstants.Time.UiHeartbeatPeriodSeconds));
+            _hangMonitorTimer = new System.Threading.Timer(_ => SafeCheckHang(), null,
+                TimeSpan.FromSeconds(AppConstants.Time.HangMonitorInitialDelaySeconds),
+                TimeSpan.FromSeconds(AppConstants.Time.HangMonitorPeriodSeconds));
         }
 
         public void ApplyCrashLogPolicy(int retentionDays, int maxSizeMb)
         {
-            if (retentionDays < 1) retentionDays = 1;
-            if (retentionDays > 365) retentionDays = 365;
+            if (retentionDays < AppConstants.Limits.CrashRetentionDaysMin) retentionDays = AppConstants.Limits.CrashRetentionDaysMin;
+            if (retentionDays > AppConstants.Limits.CrashRetentionDaysMax) retentionDays = AppConstants.Limits.CrashRetentionDaysMax;
 
-            if (maxSizeMb < 1) maxSizeMb = 1;
-            if (maxSizeMb > 2048) maxSizeMb = 2048;
+            if (maxSizeMb < AppConstants.Limits.CrashMaxSizeMbMin) maxSizeMb = AppConstants.Limits.CrashMaxSizeMbMin;
+            if (maxSizeMb > AppConstants.Limits.CrashMaxSizeMbMax) maxSizeMb = AppConstants.Limits.CrashMaxSizeMbMax;
 
             CrashLogRetentionDays = retentionDays;
             CrashLogMaxSizeMB = maxSizeMb;

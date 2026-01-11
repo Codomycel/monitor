@@ -296,20 +296,20 @@
                 </ItemsControl>
             </Border>
 
-            <TabControl Grid.Row="1" Style="{StaticResource ModernTabControlStyle}" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
-                <TabItem Header="Application Usage" Style="{StaticResource ModernTabItemStyle}">
+            <TabControl Grid.Row="1" Style="{StaticResource UIATabControlStyle}" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
+                <TabItem Header="Application Usage" Style="{StaticResource UIATabItemStyle}">
                     <ContentPresenter Content="{Binding}"/>
                 </TabItem>
-                <TabItem Header="Weekly Overview" Style="{StaticResource ModernTabItemStyle}">
+                <TabItem Header="Weekly Overview" Style="{StaticResource UIATabItemStyle}">
                     <ContentPresenter Content="{Binding}"/>
                 </TabItem>
-                <TabItem Header="Monthly Usage" Style="{StaticResource ModernTabItemStyle}">
+                <TabItem Header="Monthly Usage" Style="{StaticResource UIATabItemStyle}">
                     <ContentPresenter Content="{Binding}"/>
                 </TabItem>
-                <TabItem Header="Last Crash" Style="{StaticResource ModernTabItemStyle}">
+                <TabItem Header="Last Crash" Style="{StaticResource UIATabItemStyle}">
                     <ContentPresenter Content="{Binding}"/>
                 </TabItem>
-                <TabItem Header="Settings" Style="{StaticResource ModernTabItemStyle}">
+                <TabItem Header="Settings" Style="{StaticResource UIATabItemStyle}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,10,0,0">
                         <StackPanel>
                             <Border Style="{StaticResource CardStyle}">
@@ -324,13 +324,13 @@
 
                                         <TextBlock Text="UI:" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" Margin="0,0,8,0" Width="80"/>
                                         <ComboBox Grid.Column="1" MinWidth="140">
-                                            <ComboBoxItem Content="Modern"/>
-                                            <ComboBoxItem Content="Classic"/>
+                                            <ComboBoxItem Content="UI A" Tag="UIA"/>
+                                            <ComboBoxItem Content="UI B" Tag="UIB"/>
                                         </ComboBox>
                                     </Grid>
 
                                     <TextBlock Text="Idle (min):" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" Margin="0,0,8,0" Width="80"/>
-                                    <TextBox Style="{StaticResource ModernTextBoxStyle}" Margin="0,0,0,6"
+                                    <TextBox Style="{StaticResource UIATextBoxStyle}" Margin="0,0,0,6"
                                              Text="{Binding IdleThresholdMinutes, UpdateSourceTrigger=PropertyChanged}"/>
 
                                     <Button Content="Save Settings" Style="{StaticResource PrimaryButtonStyle}"

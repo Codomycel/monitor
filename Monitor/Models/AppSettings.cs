@@ -2,15 +2,15 @@ namespace SystemActivityTracker.Models
 {
     public class AppSettings
     {
-        public int IdleThresholdMinutes { get; set; } = 5;
-        public int PollIntervalSeconds { get; set; } = 5;
-        public bool EnableLiveRefresh { get; set; } = true;
-        public int LiveRefreshIntervalSeconds { get; set; } = 30;
-        public bool AutoStartTrackingOnLaunch { get; set; } = true;
+        public int IdleThresholdMinutes { get; set; } = Utilities.AppConstants.Defaults.IdleThresholdMinutes;
+        public int PollIntervalSeconds { get; set; } = Utilities.AppConstants.Defaults.PollIntervalSeconds;
+        public bool EnableLiveRefresh { get; set; } = Utilities.AppConstants.Defaults.EnableLiveRefresh;
+        public int LiveRefreshIntervalSeconds { get; set; } = Utilities.AppConstants.Defaults.LiveRefreshIntervalSeconds;
+        public bool AutoStartTrackingOnLaunch { get; set; } = Utilities.AppConstants.Defaults.AutoStartTrackingOnLaunch;
 
-        public string UiMode { get; set; } = "Modern";
+        public string UiMode { get; set; } = Utilities.UiModes.Default;
 
-        public int CrashLogRetentionDays { get; set; } = 14;
-        public int CrashLogMaxSizeMB { get; set; } = 50;
+        public int CrashLogRetentionDays { get; set; } = Utilities.AppConstants.Defaults.CrashLogRetentionDays;
+        public int CrashLogMaxSizeMB { get; set; } = Utilities.AppConstants.Defaults.CrashLogMaxSizeMB;
     }
 }

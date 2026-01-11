@@ -84,15 +84,15 @@ namespace SystemActivityTracker.Services
                     }
                     catch
                     {
-                        _app.MainWindow = new MainWindow();
+                        _app.MainWindow = new UiAMainWindow();
                     }
                 }
 
-                if (_app.MainWindow is MainWindow mw)
+                if (_app.MainWindow is UiAMainWindow mw)
                 {
                     mw.RestoreFromTrayInternal();
                 }
-                else if (_app.MainWindow is ClassicMainWindow cmw)
+                else if (_app.MainWindow is UiBMainWindow cmw)
                 {
                     cmw.RestoreFromTrayInternal();
                 }
@@ -119,11 +119,11 @@ namespace SystemActivityTracker.Services
         {
             _app.Dispatcher.Invoke(() =>
             {
-                if (_app.MainWindow is MainWindow mw)
+                if (_app.MainWindow is UiAMainWindow mw)
                 {
                     mw.RunRefreshCommandInternal();
                 }
-                else if (_app.MainWindow is ClassicMainWindow cmw)
+                else if (_app.MainWindow is UiBMainWindow cmw)
                 {
                     cmw.RunRefreshCommandInternal();
                 }

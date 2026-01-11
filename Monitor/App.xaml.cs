@@ -6,6 +6,7 @@ using Microsoft.Win32;
 using SystemActivityTracker.Services;
 using SystemActivityTracker.Services.Abstractions;
 using SystemActivityTracker.Services.Platform;
+using SystemActivityTracker.Utilities;
 using SystemActivityTracker.ViewModels;
 using SystemActivityTracker.Views;
 using System.Windows.Threading;
@@ -94,27 +95,27 @@ namespace SystemActivityTracker
             }
             catch
             {
-                MainWindow = new MainWindow();
+                MainWindow = new UiAMainWindow();
                 MainWindow.Show();
             }
         }
 
         internal Window CreateMainWindowForMode(string? uiMode, MainWindowViewModel? existingVm)
         {
-            var normalized = string.Equals(uiMode, "Classic", StringComparison.OrdinalIgnoreCase)
-                ? "Classic"
-                : "Modern";
+            var normalized = string.Equals(uiMode, UiModes.UIB, StringComparison.OrdinalIgnoreCase)
+                ? UiModes.UIB
+                : UiModes.UIA;
 
             MainWindowViewModel vm = existingVm ?? Services.GetRequiredService<MainWindowViewModel>();
 
             Window window;
-            if (string.Equals(normalized, "Classic", StringComparison.Ordinal))
+            if (string.Equals(normalized, UiModes.UIB, StringComparison.Ordinal))
             {
-                window = new ClassicMainWindow();
+                window = new UiBMainWindow();
             }
             else
             {
-                window = new MainWindow();
+                window = new UiAMainWindow();
             }
 
             window.DataContext = vm;

@@ -6,6 +6,7 @@ using Microsoft.Win32;
 using SystemActivityTracker.Models;
 using SystemActivityTracker.Services.Abstractions;
 using SystemActivityTracker.Services.Platform;
+using SystemActivityTracker.Utilities;
 
 namespace SystemActivityTracker.Services
 {
@@ -23,7 +24,7 @@ namespace SystemActivityTracker.Services
         private readonly IActiveWindowProvider _activeWindowProvider;
         private readonly IActivityLogWriter _logWriter;
         private readonly System.Timers.Timer _timer;
-        private TimeSpan _idleThreshold = TimeSpan.FromSeconds(300);
+        private TimeSpan _idleThreshold = TimeSpan.FromSeconds(AppConstants.Defaults.IdleThresholdMinutes * 60);
         private AppSettings _settings;
         private readonly object _syncRoot = new object();
 
@@ -79,18 +80,18 @@ namespace SystemActivityTracker.Services
             if (_settings.IdleThresholdMinutes <= 0)
             {
                 Debug.WriteLine($"[Tracking] Invalid IdleThresholdMinutes={_settings.IdleThresholdMinutes}. Using default 5.");
-                _settings.IdleThresholdMinutes = 5;
+                _settings.IdleThresholdMinutes = AppConstants.Defaults.IdleThresholdMinutes;
             }
 
             if (_settings.PollIntervalSeconds <= 0)
             {
                 Debug.WriteLine($"[Tracking] Invalid PollIntervalSeconds={_settings.PollIntervalSeconds}. Using default 5.");
-                _settings.PollIntervalSeconds = 5;
+                _settings.PollIntervalSeconds = AppConstants.Defaults.PollIntervalSeconds;
             }
 
             _idleThreshold = TimeSpan.FromMinutes(_settings.IdleThresholdMinutes);
 
-            _timer = new System.Timers.Timer(_settings.PollIntervalSeconds * 1000);
+            _timer = new System.Timers.Timer(_settings.PollIntervalSeconds * AppConstants.Time.MillisPerSecond);
             _timer.AutoReset = true;
             _timer.Elapsed += OnTimerElapsed;
         }

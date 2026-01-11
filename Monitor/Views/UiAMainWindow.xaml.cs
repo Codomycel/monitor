@@ -2,18 +2,19 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
 using Microsoft.Extensions.DependencyInjection;
+using SystemActivityTracker.Utilities;
 using SystemActivityTracker.ViewModels;
 
 namespace SystemActivityTracker.Views
 {
-    public partial class MainWindow : Window
+    public partial class UiAMainWindow : Window
     {
         private bool _isExplicitExit;
         private bool _didInitialRefresh;
         private bool _isUiSwap;
         private bool _isInitializingUiMode;
 
-        public MainWindow()
+        public UiAMainWindow()
         {
             InitializeComponent();
 
@@ -159,7 +160,18 @@ namespace SystemActivityTracker.Views
                 return;
             }
 
-            if (combo.SelectedItem is not System.Windows.Controls.ComboBoxItem item || item.Content is not string mode)
+            if (combo.SelectedItem is not System.Windows.Controls.ComboBoxItem item)
+            {
+                return;
+            }
+
+            if (item.Tag is not string mode || string.IsNullOrWhiteSpace(mode))
+            {
+                return;
+            }
+
+            if (!string.Equals(mode, UiModes.UIA, System.StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(mode, UiModes.UIB, System.StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
@@ -225,8 +237,8 @@ namespace SystemActivityTracker.Views
         {
             foreach (var obj in comboBox.Items)
             {
-                if (obj is System.Windows.Controls.ComboBoxItem item && item.Content is string content &&
-                    string.Equals(content, mode, System.StringComparison.OrdinalIgnoreCase))
+                if (obj is System.Windows.Controls.ComboBoxItem item && item.Tag is string tag &&
+                    string.Equals(tag, mode, System.StringComparison.OrdinalIgnoreCase))
                 {
                     comboBox.SelectedItem = item;
                     return;
