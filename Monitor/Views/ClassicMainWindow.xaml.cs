@@ -56,6 +56,12 @@ namespace SystemActivityTracker.Views
             }
 
             _didInitialRefresh = true;
+
+            if (DataContext is MainWindowViewModel vm && vm.SelectedTabIndex < 0)
+            {
+                vm.SelectedTabIndex = 0;
+            }
+
             RunRefreshCommand();
         }
 
