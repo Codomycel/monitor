@@ -251,6 +251,9 @@ namespace SystemActivityTracker.ViewModels
             }
 
             _trackingService.Start();
+
+            ResetHeaderActiveTickerForNewRun();
+
             TrackingStatus = GetString("TrackingStatusRunning", "Tracking status: Running");
             OnPropertyChanged(nameof(IsTrackingRunning));
             StartRunningTimerTicker();
@@ -278,6 +281,19 @@ namespace SystemActivityTracker.ViewModels
             OnPropertyChanged(nameof(IsTrackingRunning));
             StopRunningTimerTicker();
             ApplyLiveRefreshSettings();
+        }
+
+        private void ResetHeaderActiveTickerForNewRun()
+        {
+            // UI-only reset so Stop -> Start doesn't reuse a stale start timestamp from a previous run.
+            // Keep the base as the already-recorded total active for today; the live delta starts fresh.
+            _headerActiveBase = ComputeActiveTotalForDate(DateTime.Today);
+
+            _headerActiveStartLocal = DateTime.Now;
+            _headerActiveLastRecordStartLocal = null;
+
+            _lastDisplayedActiveSecond = -1;
+            TickHeaderActiveTimer();
         }
 
         public string HeaderRunningTimerText
@@ -344,13 +360,32 @@ namespace SystemActivityTracker.ViewModels
             {
                 if (_headerActiveStartLocal == null)
                 {
-                    _headerActiveStartLocal = snapshot.CurrentRecordStartTime ?? now;
+                    var start = snapshot.CurrentRecordStartTime ?? now;
+                    if (start > now)
+                    {
+                        start = now;
+                    }
+
+                    _headerActiveStartLocal = start;
                     _headerActiveLastRecordStartLocal = snapshot.CurrentRecordStartTime;
                 }
                 else if (snapshot.CurrentRecordStartTime.HasValue && _headerActiveLastRecordStartLocal.HasValue && snapshot.CurrentRecordStartTime.Value != _headerActiveLastRecordStartLocal.Value)
                 {
-                    _headerActiveBase += now - _headerActiveStartLocal.Value;
-                    _headerActiveStartLocal = snapshot.CurrentRecordStartTime.Value;
+                    var delta = now - _headerActiveStartLocal.Value;
+                    if (delta < TimeSpan.Zero)
+                    {
+                        delta = TimeSpan.Zero;
+                    }
+
+                    _headerActiveBase += delta;
+
+                    var start = snapshot.CurrentRecordStartTime.Value;
+                    if (start > now)
+                    {
+                        start = now;
+                    }
+
+                    _headerActiveStartLocal = start;
                     _headerActiveLastRecordStartLocal = snapshot.CurrentRecordStartTime.Value;
                 }
             }
@@ -358,7 +393,13 @@ namespace SystemActivityTracker.ViewModels
             {
                 if (_headerActiveStartLocal.HasValue)
                 {
-                    _headerActiveBase += now - _headerActiveStartLocal.Value;
+                    var delta = now - _headerActiveStartLocal.Value;
+                    if (delta < TimeSpan.Zero)
+                    {
+                        delta = TimeSpan.Zero;
+                    }
+
+                    _headerActiveBase += delta;
                     _headerActiveStartLocal = null;
                     _headerActiveLastRecordStartLocal = null;
                 }
@@ -367,7 +408,13 @@ namespace SystemActivityTracker.ViewModels
             var total = _headerActiveBase;
             if (_headerActiveStartLocal.HasValue)
             {
-                total += now - _headerActiveStartLocal.Value;
+                var delta = now - _headerActiveStartLocal.Value;
+                if (delta < TimeSpan.Zero)
+                {
+                    delta = TimeSpan.Zero;
+                }
+
+                total += delta;
             }
 
             if (total < TimeSpan.Zero)
@@ -430,13 +477,32 @@ namespace SystemActivityTracker.ViewModels
             {
                 if (_headerActiveStartLocal == null)
                 {
-                    _headerActiveStartLocal = snapshot.CurrentRecordStartTime ?? now;
+                    var start = snapshot.CurrentRecordStartTime ?? now;
+                    if (start > now)
+                    {
+                        start = now;
+                    }
+
+                    _headerActiveStartLocal = start;
                     _headerActiveLastRecordStartLocal = snapshot.CurrentRecordStartTime;
                 }
                 else if (snapshot.CurrentRecordStartTime.HasValue && _headerActiveLastRecordStartLocal.HasValue && snapshot.CurrentRecordStartTime.Value != _headerActiveLastRecordStartLocal.Value)
                 {
-                    _headerActiveBase += now - _headerActiveStartLocal.Value;
-                    _headerActiveStartLocal = snapshot.CurrentRecordStartTime.Value;
+                    var delta = now - _headerActiveStartLocal.Value;
+                    if (delta < TimeSpan.Zero)
+                    {
+                        delta = TimeSpan.Zero;
+                    }
+
+                    _headerActiveBase += delta;
+
+                    var start = snapshot.CurrentRecordStartTime.Value;
+                    if (start > now)
+                    {
+                        start = now;
+                    }
+
+                    _headerActiveStartLocal = start;
                     _headerActiveLastRecordStartLocal = snapshot.CurrentRecordStartTime.Value;
                 }
             }
@@ -444,7 +510,13 @@ namespace SystemActivityTracker.ViewModels
             {
                 if (_headerActiveStartLocal.HasValue)
                 {
-                    _headerActiveBase += now - _headerActiveStartLocal.Value;
+                    var delta = now - _headerActiveStartLocal.Value;
+                    if (delta < TimeSpan.Zero)
+                    {
+                        delta = TimeSpan.Zero;
+                    }
+
+                    _headerActiveBase += delta;
                     _headerActiveStartLocal = null;
                     _headerActiveLastRecordStartLocal = null;
                 }
@@ -453,7 +525,13 @@ namespace SystemActivityTracker.ViewModels
             var total = _headerActiveBase;
             if (_headerActiveStartLocal.HasValue)
             {
-                total += now - _headerActiveStartLocal.Value;
+                var delta = now - _headerActiveStartLocal.Value;
+                if (delta < TimeSpan.Zero)
+                {
+                    delta = TimeSpan.Zero;
+                }
+
+                total += delta;
             }
 
             if (total < TimeSpan.Zero)
