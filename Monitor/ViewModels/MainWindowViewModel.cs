@@ -6,6 +6,8 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using System.Windows.Threading;
+using LiveCharts;
+using LiveCharts.Wpf;
 using SystemActivityTracker.Models;
 using SystemActivityTracker.Services;
 using SystemActivityTracker.Services.Abstractions;
@@ -178,6 +180,9 @@ namespace SystemActivityTracker.ViewModels
             SyncHeaderActiveBaseFromSummary();
 
             LoadManualTasksForSelectedDate();
+
+            // Initialize chart data
+            InitializeChartData();
         }
 
         private static string GetString(string key, string fallback)
@@ -781,6 +786,15 @@ namespace SystemActivityTracker.ViewModels
             OnPropertyChanged(nameof(SelectedDayLockedText));
             OnPropertyChanged(nameof(SelectedDayStartText));
             OnPropertyChanged(nameof(SelectedDayEndText));
+            
+            // Notify UserControl properties
+            OnPropertyChanged(nameof(SelectedDayTotalActiveSeconds));
+            OnPropertyChanged(nameof(SelectedDayLockedSeconds));
+            OnPropertyChanged(nameof(SelectedDayIdleSeconds));
+            OnPropertyChanged(nameof(SelectedDayActiveSeconds));
+            OnPropertyChanged(nameof(SelectedDayManualSeconds));
+            
+            UpdateChartData();
         }
 
         private bool IsSelectedDateInCurrentWeek()
@@ -918,6 +932,7 @@ namespace SystemActivityTracker.ViewModels
             _selectedDayManualDuration = TimeSpan.FromSeconds(GetManualSecondsForDate(SelectedDate.Date));
             OnPropertyChanged(nameof(SelectedDayManualTasksText));
             OnPropertyChanged(nameof(SelectedDayTotalActiveText));
+            UpdateChartData();
         }
 
         public DateTime WeekStartDate
@@ -1087,6 +1102,213 @@ namespace SystemActivityTracker.ViewModels
         public string SelectedDayTotalActiveText => $"{(TotalActiveTimeToday + _selectedDayManualDuration).ToHoursMinutes()}";
         public string SelectedDayIdleText => $"{TotalIdleTimeToday.ToHoursMinutes()}";
         public string SelectedDayLockedText => $"{TotalLockedTimeToday.ToHoursMinutes()}";
+
+        // Chart data properties for Selected Day breakdown
+        public SeriesCollection SelectedDaySeries { get; private set; } = new SeriesCollection();
+        public string[] SelectedDayLabels { get; private set; } = { "Total Active", "Locked", "Idle" };
+        public Func<double, string> SelectedDayFormatter { get; private set; } = value => 
+        {
+            // Only show "8h" label at exactly 8 hours (28800 seconds)
+            var seconds = value;
+            if (Math.Abs(seconds - 28800) < 30) // 8 hours = 28800 seconds, with small tolerance
+            {
+                return "8h";
+            }
+            return ""; // Hide all other labels
+        };
+        public double SelectedDayYAxisMax { get; private set; } = 36000; // Default 10 hours in seconds
+        public double EightHourLinePosition { get; private set; } = 120; // Default position for 8h line
+        
+        // Seconds-based properties for UserControl
+        public long SelectedDayTotalActiveSeconds => (long)(TotalActiveTimeToday + _selectedDayManualDuration).TotalSeconds;
+        public long SelectedDayLockedSeconds => (long)TotalLockedTimeToday.TotalSeconds;
+        public long SelectedDayIdleSeconds => (long)TotalIdleTimeToday.TotalSeconds;
+        public long SelectedDayActiveSeconds => (long)TotalActiveTimeToday.TotalSeconds;
+        public long SelectedDayManualSeconds => (long)_selectedDayManualDuration.TotalSeconds;
+
+        // Tooltip data properties (legacy, can be removed later)
+        public string TooltipTotalActive { get; private set; } = "";
+        public string TooltipActive { get; private set; } = "";
+        public string TooltipManual { get; private set; } = "";
+        public string TooltipIdle { get; private set; } = "";
+        public string TooltipLocked { get; private set; } = "";
+
+        private void InitializeChartData()
+        {
+            SelectedDaySeries.Clear();
+            
+            // Total Active series (index 0)
+            var totalActiveSeries = new ColumnSeries
+            {
+                Title = "Total Active",
+                Values = new ChartValues<double> { 0.0 }, // Single value
+                DataLabels = true,
+                StrokeThickness = 0
+            };
+            
+            // Locked series (index 1)
+            var lockedSeries = new ColumnSeries
+            {
+                Title = "Locked",
+                Values = new ChartValues<double> { 0.0 }, // Single value
+                DataLabels = true,
+                StrokeThickness = 0
+            };
+            
+            // Idle series (index 2)
+            var idleSeries = new ColumnSeries
+            {
+                Title = "Idle",
+                Values = new ChartValues<double> { 0.0 }, // Single value
+                DataLabels = true,
+                StrokeThickness = 0
+            };
+            
+            SelectedDaySeries.Add(totalActiveSeries);
+            SelectedDaySeries.Add(lockedSeries);
+            SelectedDaySeries.Add(idleSeries);
+        }
+
+        private System.Windows.Media.Brush GetTotalActiveColor(double totalActiveMinutes)
+        {
+            var totalActiveHours = totalActiveMinutes / 60.0;
+            
+            if (totalActiveHours < 4)
+            {
+                // LowDarkRed
+                return new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(139, 0, 0));
+            }
+            else if (totalActiveHours < 6)
+            {
+                // MediumAmber
+                return new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 191, 0));
+            }
+            else if (totalActiveHours < 8)
+            {
+                // GoingToAchieveOrange
+                return new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 140, 0));
+            }
+            else if (totalActiveHours <= 12)
+            {
+                // AchievedDarkGreen
+                return new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0, 100, 0));
+            }
+            else
+            {
+                // >12 hours: Gradient fill (Green bottom, Red top)
+                var gradientBrush = new System.Windows.Media.LinearGradientBrush();
+                gradientBrush.StartPoint = new System.Windows.Point(0, 1);
+                gradientBrush.EndPoint = new System.Windows.Point(0, 0);
+                gradientBrush.GradientStops.Add(new System.Windows.Media.GradientStop(System.Windows.Media.Colors.Green, 0.0));
+                gradientBrush.GradientStops.Add(new System.Windows.Media.GradientStop(System.Windows.Media.Colors.Red, 1.0));
+                return gradientBrush;
+            }
+        }
+
+        private string FormatTooltipTime(double minutes)
+        {
+            var hours = (int)(minutes / 60);
+            var mins = (int)(minutes % 60);
+            return $"{hours}.{mins:D2}h";
+        }
+
+        private void UpdateChartData()
+        {
+            if (SelectedDaySeries == null || SelectedDaySeries.Count < 3) return;
+
+            // Use seconds as the base unit for all calculations
+            var totalActiveSeconds = (TotalActiveTimeToday + _selectedDayManualDuration).TotalSeconds;
+            var lockedSeconds = TotalLockedTimeToday.TotalSeconds;
+            var idleSeconds = TotalIdleTimeToday.TotalSeconds;
+            var activeSeconds = TotalActiveTimeToday.TotalSeconds;
+            var manualSeconds = _selectedDayManualDuration.TotalSeconds;
+
+            // Calculate Y-axis max: max(8 hours, max values) + 10% padding
+            var maxValue = Math.Max(totalActiveSeconds, Math.Max(lockedSeconds, idleSeconds));
+            var eightHoursInSeconds = 8 * 60 * 60; // 8 hours = 28800 seconds
+            SelectedDayYAxisMax = Math.Max(eightHoursInSeconds, maxValue) * 1.1; // 10% padding
+            
+            // Calculate 8h line position (in chart coordinates, where 0 = bottom, 180 = top for 200px height)
+            // Chart area is approximately 180px tall (200px height - margins)
+            var chartHeight = 180.0;
+            EightHourLinePosition = chartHeight - (eightHoursInSeconds / SelectedDayYAxisMax * chartHeight);
+            
+            OnPropertyChanged(nameof(SelectedDayYAxisMax));
+            OnPropertyChanged(nameof(EightHourLinePosition));
+            
+            // Update tooltip data
+            TooltipTotalActive = $"Total Active: {FormatDetailedTooltip(totalActiveSeconds)}";
+            TooltipActive = $"Active: {FormatDetailedTooltip(activeSeconds)}";
+            TooltipManual = $"Manual: {FormatDetailedTooltip(manualSeconds)}";
+            TooltipIdle = $"Idle: {FormatDetailedTooltip(idleSeconds)}";
+            TooltipLocked = $"Locked: {FormatDetailedTooltip(lockedSeconds)}";
+            
+            OnPropertyChanged(nameof(TooltipTotalActive));
+            OnPropertyChanged(nameof(TooltipActive));
+            OnPropertyChanged(nameof(TooltipManual));
+            OnPropertyChanged(nameof(TooltipIdle));
+            OnPropertyChanged(nameof(TooltipLocked));
+
+            // Update Total Active series (index 0)
+            if (SelectedDaySeries[0].Values.Count > 0)
+            {
+                SelectedDaySeries[0].Values[0] = totalActiveSeconds;
+                // Apply conditional coloring to Total Active bar
+                if (SelectedDaySeries[0] is ColumnSeries totalActiveSeries)
+                {
+                    totalActiveSeries.Fill = GetTotalActiveColor(totalActiveSeconds / 60.0); // Convert to minutes for color calculation
+                    // Summary label on bar (H.MMh format, no seconds)
+                    totalActiveSeries.LabelPoint = point => FormatSummaryLabel(totalActiveSeconds);
+                }
+            }
+
+            // Update Locked series (index 1)
+            if (SelectedDaySeries[1].Values.Count > 0)
+            {
+                SelectedDaySeries[1].Values[0] = lockedSeconds;
+                // Summary label on bar
+                if (SelectedDaySeries[1] is ColumnSeries lockedSeries)
+                {
+                    lockedSeries.LabelPoint = point => FormatSummaryLabel(lockedSeconds);
+                }
+            }
+
+            // Update Idle series (index 2)
+            if (SelectedDaySeries[2].Values.Count > 0)
+            {
+                SelectedDaySeries[2].Values[0] = idleSeconds;
+                // Summary label on bar
+                if (SelectedDaySeries[2] is ColumnSeries idleSeries)
+                {
+                    idleSeries.LabelPoint = point => FormatSummaryLabel(idleSeconds);
+                }
+            }
+        }
+
+        private string FormatSummaryLabel(double totalSeconds)
+        {
+            var hours = (int)(totalSeconds / 3600);
+            var minutes = (int)((totalSeconds % 3600) / 60);
+            var seconds = (int)(totalSeconds % 60);
+            
+            if (minutes == 0 && seconds == 0)
+            {
+                return $"{hours}h";
+            }
+            else
+            {
+                return $"{hours}.{minutes:D2}h";
+            }
+        }
+
+        private string FormatDetailedTooltip(double totalSeconds)
+        {
+            var hours = (int)(totalSeconds / 3600);
+            var minutes = (int)((totalSeconds % 3600) / 60);
+            var seconds = (int)(totalSeconds % 60);
+            
+            return $"{hours:D2} hrs {minutes:D2} mins {seconds:D2} secs";
+        }
 
         public TimeSpan WeeklyTrackedActiveDuration
         {
