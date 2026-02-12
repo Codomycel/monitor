@@ -786,14 +786,6 @@ namespace SystemActivityTracker.ViewModels
             OnPropertyChanged(nameof(SelectedDayLockedText));
             OnPropertyChanged(nameof(SelectedDayStartText));
             OnPropertyChanged(nameof(SelectedDayEndText));
-            
-            // Notify UserControl properties
-            OnPropertyChanged(nameof(SelectedDayTotalActiveSeconds));
-            OnPropertyChanged(nameof(SelectedDayLockedSeconds));
-            OnPropertyChanged(nameof(SelectedDayIdleSeconds));
-            OnPropertyChanged(nameof(SelectedDayActiveSeconds));
-            OnPropertyChanged(nameof(SelectedDayManualSeconds));
-            
             UpdateChartData();
         }
 
@@ -1119,14 +1111,7 @@ namespace SystemActivityTracker.ViewModels
         public double SelectedDayYAxisMax { get; private set; } = 36000; // Default 10 hours in seconds
         public double EightHourLinePosition { get; private set; } = 120; // Default position for 8h line
         
-        // Seconds-based properties for UserControl
-        public long SelectedDayTotalActiveSeconds => (long)(TotalActiveTimeToday + _selectedDayManualDuration).TotalSeconds;
-        public long SelectedDayLockedSeconds => (long)TotalLockedTimeToday.TotalSeconds;
-        public long SelectedDayIdleSeconds => (long)TotalIdleTimeToday.TotalSeconds;
-        public long SelectedDayActiveSeconds => (long)TotalActiveTimeToday.TotalSeconds;
-        public long SelectedDayManualSeconds => (long)_selectedDayManualDuration.TotalSeconds;
-
-        // Tooltip data properties (legacy, can be removed later)
+        // Tooltip data properties
         public string TooltipTotalActive { get; private set; } = "";
         public string TooltipActive { get; private set; } = "";
         public string TooltipManual { get; private set; } = "";

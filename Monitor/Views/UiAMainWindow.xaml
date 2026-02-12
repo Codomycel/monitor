@@ -3,7 +3,6 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:conv="clr-namespace:SystemActivityTracker.Converters"
         xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
-        xmlns:controls="clr-namespace:SystemActivityTracker.Controls"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
@@ -21,7 +20,6 @@
         <conv:DecimalHoursConverter x:Key="DecimalHoursConverter"/>
         <conv:Subtract10Converter x:Key="Subtract10Converter"/>
         <conv:Subtract8Converter x:Key="Subtract8Converter"/>
-        <conv:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
     </Window.Resources>
 
     <Grid>
@@ -291,16 +289,73 @@
                                         </TextBlock.Visibility>
                                     </TextBlock>
 
-                                    <controls:ActivitySummaryBarChart 
-                                    Visibility="{Binding ElementName=SelectedDayBreakdownHost, Path=Tag, Converter={StaticResource GreaterThanZeroToVisibilityConverter}}"
-                                    TotalActiveSeconds="{Binding SelectedDayTotalActiveSeconds}"
-                                    LockedSeconds="{Binding SelectedDayLockedSeconds}"
-                                    IdleSeconds="{Binding SelectedDayIdleSeconds}"
-                                    ActiveSeconds="{Binding SelectedDayActiveSeconds}"
-                                    ManualSeconds="{Binding SelectedDayManualSeconds}"
-                                    ShowTargetLine="True"
-                                    TargetSeconds="28800"
-                                    EnableTotalActiveThresholdColors="True"/>
+                                    <Grid Height="200" Margin="0,8,0,0">
+                                    <!-- 8h Reference Line with Label -->
+                                    <Canvas Name="EightHourReferenceCanvas" IsHitTestVisible="False">
+                                        <Line Name="EightHourLine" X1="60" Y1="{Binding EightHourLinePosition}" X2="400" Y2="{Binding EightHourLinePosition}" 
+                                              Stroke="#10B981" StrokeThickness="3"/>
+                                        <Rectangle Name="EightHourLabelBackground" Canvas.Left="8" Canvas.Top="{Binding EightHourLinePosition, Converter={StaticResource Subtract10Converter}}" 
+                                                 Width="35" Height="20" Fill="White" Stroke="#10B981" StrokeThickness="1" RadiusX="3" RadiusY="3"/>
+                                        <TextBlock Name="EightHourLabel" Text="8h" Canvas.Left="15" Canvas.Top="{Binding EightHourLinePosition, Converter={StaticResource Subtract8Converter}}" 
+                                                 FontSize="11" Foreground="#10B981" FontWeight="Bold"/>
+                                    </Canvas>
+                                    
+                                    <lvc:CartesianChart Name="SelectedDayChart" 
+                                                       Visibility="{Binding ElementName=SelectedDayBreakdownHost, Path=Tag, Converter={StaticResource GreaterThanZeroToVisibilityConverter}}"
+                                                       Background="Transparent" 
+                                                       LegendLocation="Bottom"
+                                                       Series="{Binding SelectedDaySeries}"
+                                                       Hoverable="True"
+                                                       DataTooltip="{x:Null}">
+                                        <lvc:CartesianChart.AxisY>
+                                            <lvc:Axis LabelFormatter="{Binding SelectedDayFormatter}" 
+                                                     MaxValue="{Binding SelectedDayYAxisMax}"
+                                                     Title=""
+                                                     ShowLabels="True"
+                                                     MinValue="0">
+                                                <lvc:Axis.Separator>
+                                                    <lvc:Separator IsEnabled="True" StrokeThickness="1" Stroke="#E5E7EB" StrokeDashArray="2,2"/>
+                                                </lvc:Axis.Separator>
+                                            </lvc:Axis>
+                                        </lvc:CartesianChart.AxisY>
+                                        <lvc:CartesianChart.AxisX>
+                                            <lvc:Axis Labels="{Binding SelectedDayLabels}" />
+                                        </lvc:CartesianChart.AxisX>
+                                        
+                                        <!-- Enhanced Custom Tooltip -->
+                                        <lvc:CartesianChart.ToolTip>
+                                            <ToolTip Background="White" BorderBrush="#D1D5DB" BorderThickness="1" Padding="12" MaxWidth="300">
+                                                <StackPanel>
+                                                    <!-- Group A: Total Active (BIG font) -->
+                                                    <TextBlock Text="{Binding TooltipTotalActive}" FontSize="16" FontWeight="Bold" 
+                                                              Foreground="#1F2937" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                                    
+                                                    <!-- Separator Line -->
+                                                    <Separator Height="1" Background="#E5E7EB" Margin="0,0,0,8"/>
+                                                    
+                                                    <!-- Group B: Active Breakdown (tiny font) -->
+                                                    <StackPanel Margin="0,0,0,8">
+                                                        <TextBlock Text="{Binding TooltipActive}" FontSize="10" Foreground="#6B7280" 
+                                                                  TextWrapping="Wrap" Margin="0,0,0,2"/>
+                                                        <TextBlock Text="{Binding TooltipManual}" FontSize="10" Foreground="#6B7280" 
+                                                                  TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                    
+                                                    <!-- Separator Line -->
+                                                    <Separator Height="1" Background="#E5E7EB" Margin="0,0,0,8"/>
+                                                    
+                                                    <!-- Group C: Other (tiny font) -->
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding TooltipIdle}" FontSize="10" Foreground="#6B7280" 
+                                                                  TextWrapping="Wrap" Margin="0,0,0,2"/>
+                                                        <TextBlock Text="{Binding TooltipLocked}" FontSize="10" Foreground="#6B7280" 
+                                                                  TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </ToolTip>
+                                        </lvc:CartesianChart.ToolTip>
+                                    </lvc:CartesianChart>
+                                </Grid>
                                 </Grid>
                             </Grid>
                         </StackPanel>
