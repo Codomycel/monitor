@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:conv="clr-namespace:SystemActivityTracker.Converters"
+        xmlns:controls="clr-namespace:SystemActivityTracker.Controls"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
@@ -503,8 +504,7 @@
                             <TextBlock Text="Monthly Usage" Style="{StaticResource HeaderTextStyle}"/>
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,10">
                                 <TextBlock Text="Month:" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <DatePicker SelectedDate="{Binding SelectedMonth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="140" Margin="0,0,8,0"/>
-                                <Button Content="Load" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding LoadMonthlyUsageCommand}"/>
+                                <controls:MonthYearPicker SelectedMonthYear="{Binding SelectedMonthYear, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                             <TextBlock Text="No data for selected month" HorizontalAlignment="Center" Margin="0,8,0,8">
                                 <TextBlock.Style>

@@ -15,6 +15,31 @@ using SystemActivityTracker.Utilities;
 
 namespace SystemActivityTracker.ViewModels
 {
+    // Monthly Calendar Data Model
+    public class MonthlyDayItem
+    {
+        public DateTime Date { get; set; }
+        public TimeSpan TotalActive { get; set; }
+        public TimeSpan TotalIdle { get; set; }
+        public TimeSpan TotalLocked { get; set; }
+        public TimeSpan ManualTime { get; set; }
+        public bool IsCurrentMonth { get; set; }
+        public bool IsWeekend => Date.DayOfWeek == DayOfWeek.Saturday || Date.DayOfWeek == DayOfWeek.Sunday;
+        public bool HasData => TotalActive > TimeSpan.Zero || TotalIdle > TimeSpan.Zero || TotalLocked > TimeSpan.Zero || ManualTime > TimeSpan.Zero;
+        public int WeekNumber => System.Globalization.CultureInfo.CurrentCulture.Calendar.GetWeekOfYear(Date, System.Globalization.CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Sunday);
+        public ActivityChartViewModel? ChartViewModel { get; set; }
+    }
+
+    // Weekly Summary Data Model
+    public class WeeklySummaryItem
+    {
+        public int WeekNumber { get; set; }
+        public DateTime WeekStart { get; set; }
+        public DateTime WeekEnd { get; set; }
+        public TimeSpan TotalActiveHours { get; set; }
+        public string TotalActiveText => $"{(int)TotalActiveHours.TotalHours}h {TotalActiveHours.Minutes}m";
+    }
+
     public class MainWindowViewModel : INotifyPropertyChanged
     {
         private readonly TrackingService? _trackingService;
@@ -33,7 +58,7 @@ namespace SystemActivityTracker.ViewModels
         private string _manualHours = string.Empty;
         private string _manualMinutes = string.Empty;
         private string _manualSeconds = string.Empty;
-        private int _selectedTabIndex;
+        private int _selectedTabIndex = 0; // Default to Monthly Usage tab (will be repositioned to first)
         private int _idleThresholdMinutes;
         private int _pollIntervalSeconds;
         private bool _enableLiveRefresh;
@@ -42,17 +67,24 @@ namespace SystemActivityTracker.ViewModels
         private int _crashLogRetentionDays;
         private int _crashLogMaxSizeMB;
         private DateTime _selectedDate = DateTime.Today;
-        private DateTime _selectedMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        private int _selectedYear = DateTime.Today.Year;
+        private int _selectedMonth = DateTime.Today.Month;
         private DateTime _manualTasksDate = DateTime.Today;
         private DateTime _weekStartDate;
         private readonly ObservableCollection<DailySummary> _weeklySummaries = new ObservableCollection<DailySummary>();
         private readonly ObservableCollection<MonthlyAppUsageDto> _monthlyAppUsage = new ObservableCollection<MonthlyAppUsageDto>();
+        private readonly ObservableCollection<MonthlyDayItem> _monthlyCalendarDays = new ObservableCollection<MonthlyDayItem>();
+        private readonly ObservableCollection<WeeklySummaryItem> _monthlyWeeklySummaries = new ObservableCollection<WeeklySummaryItem>();
         private bool _isMonthlyUsageEmpty = true;
         private TimeSpan _weeklyTrackedActiveDuration;
         private readonly ActivityChartViewModel _activityChartViewModel = new ActivityChartViewModel();
         private readonly ActivityChartViewModel _weeklyActivityChartViewModel = new ActivityChartViewModel 
         { 
             ReferenceTime = TimeSpan.FromHours(40) // 40 hours for weekly benchmark
+        };
+        private readonly ActivityChartViewModel _monthlyActivityChartViewModel = new ActivityChartViewModel 
+        { 
+            ReferenceTime = TimeSpan.FromHours(8) // 8 hours for daily benchmark
         };
         private TimeSpan _weeklyManualDuration;
         private TimeSpan _weeklyTotalActiveDuration;
@@ -108,8 +140,6 @@ namespace SystemActivityTracker.ViewModels
             BeginEditManualTaskCommand = new RelayCommand(p => BeginEditManualTask(p as ManualTaskEntry), p => CanEditManualTasks() && !_isManualEditMode);
             CancelManualTaskEditCommand = new RelayCommand(_ => CancelManualTaskEdit(), _ => CanEditManualTasks() && _isManualEditMode);
             DeleteManualTaskRowCommand = new RelayCommand(p => DeleteManualTaskRow(p as ManualTaskEntry), p => CanEditManualTasks() && !_isManualEditMode);
-
-            LoadMonthlyUsageCommand = new RelayCommand(_ => LoadMonthlyUsage());
 
             SaveSettingsCommand = new RelayCommand(_ => SaveSettings());
             ClearCrashLogsCommand = new RelayCommand(_ => ClearCrashLogs());
@@ -582,23 +612,26 @@ namespace SystemActivityTracker.ViewModels
 
         public bool IsTrackingRunning => _trackingService != null && _trackingService.IsRunning;
 
-        public DateTime SelectedMonth
+        /// <summary>Selected month+year for Monthly Usage tab (first day of month). Single picker binding.</summary>
+        public DateTime SelectedMonthYear
         {
-            get => _selectedMonth;
+            get => new DateTime(_selectedYear, _selectedMonth, 1);
             set
             {
-                var normalized = value == default
-                    ? new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)
-                    : new DateTime(value.Year, value.Month, 1);
-
-                if (_selectedMonth != normalized)
+                var year = value.Year;
+                var month = value.Month;
+                if (_selectedYear != year || _selectedMonth != month)
                 {
-                    _selectedMonth = normalized;
+                    _selectedYear = year;
+                    _selectedMonth = month;
                     OnPropertyChanged();
-                    LoadMonthlyUsage();
+                    ReloadMonth();
                 }
             }
         }
+
+        /// <summary>First day of selected month for internal use (e.g. GetManualSecondsForMonth).</summary>
+        private DateTime SelectedMonthDateTime => new DateTime(_selectedYear, _selectedMonth, 1);
 
         public bool IsTestMode
         {
@@ -619,12 +652,13 @@ namespace SystemActivityTracker.ViewModels
         public ICommand SaveSettingsCommand { get; }
         public ICommand ClearCrashLogsCommand { get; }
         public ICommand LoadWeeklyCommand { get; }
-        public ICommand LoadMonthlyUsageCommand { get; }
         public ICommand ForceWriteNowCommand { get; }
 
         public ObservableCollection<AppUsageSummary> TodayAppUsage => _todayAppUsage;
         public ObservableCollection<DailySummary> WeeklySummaries => _weeklySummaries;
         public ObservableCollection<MonthlyAppUsageDto> MonthlyAppUsage => _monthlyAppUsage;
+        public ObservableCollection<MonthlyDayItem> MonthlyCalendarDays => _monthlyCalendarDays;
+        public ObservableCollection<WeeklySummaryItem> MonthlyWeeklySummaries => _monthlyWeeklySummaries;
 
         public bool IsMonthlyUsageEmpty
         {
@@ -796,18 +830,30 @@ namespace SystemActivityTracker.ViewModels
 
         private bool IsSelectedDateInSelectedMonth()
         {
-            return SelectedDate.Year == SelectedMonth.Year && SelectedDate.Month == SelectedMonth.Month;
+            return SelectedDate.Year == _selectedYear && SelectedDate.Month == _selectedMonth;
+        }
+
+        private void ReloadMonth()
+        {
+            LoadMonthlyUsage();
         }
 
         private void LoadMonthlyUsage()
         {
             _monthlyAppUsage.Clear();
+            _monthlyCalendarDays.Clear();
+            _monthlyWeeklySummaries.Clear();
 
-            var start = new DateTime(SelectedMonth.Year, SelectedMonth.Month, 1);
+            var start = new DateTime(_selectedYear, _selectedMonth, 1);
             var end = start.AddMonths(1).AddDays(-1);
+
+            // Calculate calendar grid start (first day of week for first day of month)
+            var calendarStart = start.AddDays(-(int)start.DayOfWeek);
+            var calendarEnd = end.AddDays(6 - (int)end.DayOfWeek);
 
             var perProcess = new System.Collections.Generic.Dictionary<string, (TimeSpan Active, TimeSpan Idle, TimeSpan Locked)>(StringComparer.OrdinalIgnoreCase);
 
+            // First pass: collect per-process data for the month
             for (var date = start; date <= end; date = date.AddDays(1))
             {
                 if (!_activityLogReader.TryReadDay(date.Date, out var entries))
@@ -846,6 +892,7 @@ namespace SystemActivityTracker.ViewModels
                 }
             }
 
+            // Populate monthly app usage
             foreach (var kvp in perProcess
                          .OrderByDescending(k => k.Value.Active)
                          .ThenByDescending(k => k.Value.Idle)
@@ -857,6 +904,77 @@ namespace SystemActivityTracker.ViewModels
                     TotalActive = kvp.Value.Active,
                     TotalIdle = kvp.Value.Idle,
                     TotalLocked = kvp.Value.Locked
+                });
+            }
+
+            // Second pass: populate calendar days with per-day data
+            for (var date = calendarStart; date <= calendarEnd; date = date.AddDays(1))
+            {
+                var dayItem = new MonthlyDayItem
+                {
+                    Date = date,
+                    IsCurrentMonth = date.Month == _selectedMonth && date.Year == _selectedYear,
+                    ChartViewModel = new ActivityChartViewModel { ReferenceTime = TimeSpan.FromHours(8), ShowReferenceLabel = false }
+                };
+
+                if (dayItem.IsCurrentMonth)
+                {
+                    TimeSpan activeTime = TimeSpan.Zero;
+                    TimeSpan idleTime = TimeSpan.Zero;
+                    TimeSpan lockedTime = TimeSpan.Zero;
+
+                    if (_activityLogReader.TryReadDay(date.Date, out var entries))
+                    {
+                        foreach (var entry in entries)
+                        {
+                            var duration = entry.EndTime - entry.StartTime;
+                            if (entry.IsLocked)
+                            {
+                                lockedTime += duration;
+                            }
+                            else if (entry.IsIdle)
+                            {
+                                idleTime += duration;
+                            }
+                            else
+                            {
+                                activeTime += duration;
+                            }
+                        }
+                    }
+
+                    var manualTime = TimeSpan.FromSeconds(GetManualSecondsForDate(date.Date));
+                    dayItem.TotalActive = activeTime;
+                    dayItem.TotalIdle = idleTime;
+                    dayItem.TotalLocked = lockedTime;
+                    dayItem.ManualTime = manualTime;
+
+                    // Set chart data
+                    dayItem.ChartViewModel.SetData(activeTime, manualTime, idleTime, lockedTime);
+                }
+
+                _monthlyCalendarDays.Add(dayItem);
+            }
+
+            // Calculate weekly summaries
+            var weeklyGroups = _monthlyCalendarDays
+                .Where(d => d.IsCurrentMonth)
+                .GroupBy(d => d.WeekNumber)
+                .OrderBy(g => g.Key);
+
+            foreach (var weekGroup in weeklyGroups)
+            {
+                var weekDays = weekGroup.ToList();
+                var weekStart = weekDays.Min(d => d.Date);
+                var weekEnd = weekDays.Max(d => d.Date);
+                var totalActive = TimeSpan.FromSeconds(weekDays.Sum(d => (d.TotalActive + d.ManualTime).TotalSeconds));
+
+                _monthlyWeeklySummaries.Add(new WeeklySummaryItem
+                {
+                    WeekNumber = weekGroup.Key,
+                    WeekStart = weekStart,
+                    WeekEnd = weekEnd,
+                    TotalActiveHours = totalActive
                 });
             }
 
@@ -876,14 +994,14 @@ namespace SystemActivityTracker.ViewModels
             }
         }
 
-        public string MonthlyManualTasksText => FormatTimeSpan(TimeSpan.FromSeconds(GetManualSecondsForMonth(SelectedMonth)));
+        public string MonthlyManualTasksText => FormatTimeSpan(TimeSpan.FromSeconds(GetManualSecondsForMonth(SelectedMonthDateTime)));
 
         public string MonthlyTotalActiveText
         {
             get
             {
                 var tracked = TimeSpan.FromSeconds(_monthlyAppUsage.Sum(x => Math.Max(0, x.TotalActive.TotalSeconds)));
-                var manual = TimeSpan.FromSeconds(GetManualSecondsForMonth(SelectedMonth));
+                var manual = TimeSpan.FromSeconds(GetManualSecondsForMonth(SelectedMonthDateTime));
                 return FormatTimeSpan(tracked + manual);
             }
         }
@@ -1111,6 +1229,7 @@ namespace SystemActivityTracker.ViewModels
         // Activity Chart ViewModels
         public ActivityChartViewModel ActivityChartViewModel => _activityChartViewModel;
         public ActivityChartViewModel WeeklyActivityChartViewModel => _weeklyActivityChartViewModel;
+        public ActivityChartViewModel MonthlyActivityChartViewModel => _monthlyActivityChartViewModel;
 
         private void UpdateActivityChart()
         {
@@ -1131,6 +1250,54 @@ namespace SystemActivityTracker.ViewModels
                 WeeklyTotalLockedDuration
             );
         }
+
+        private void UpdateMonthlyActivityChart()
+        {
+            // Get data for the selected date in the month
+            var selectedDate = SelectedMonthDate;
+            TimeSpan activeTime = TimeSpan.Zero;
+            TimeSpan idleTime = TimeSpan.Zero;
+            TimeSpan lockedTime = TimeSpan.Zero;
+            TimeSpan manualTime = TimeSpan.FromSeconds(GetManualSecondsForDate(selectedDate.Date));
+
+            if (_activityLogReader.TryReadDay(selectedDate.Date, out var entries))
+            {
+                foreach (var entry in entries)
+                {
+                    var duration = entry.EndTime - entry.StartTime;
+                    if (entry.IsLocked)
+                    {
+                        lockedTime += duration;
+                    }
+                    else if (entry.IsIdle)
+                    {
+                        idleTime += duration;
+                    }
+                    else
+                    {
+                        activeTime += duration;
+                    }
+                }
+            }
+
+            _monthlyActivityChartViewModel.SetData(activeTime, manualTime, idleTime, lockedTime);
+        }
+
+        public DateTime SelectedMonthDate
+        {
+            get => _selectedMonthDate;
+            set
+            {
+                if (_selectedMonthDate != value)
+                {
+                    _selectedMonthDate = value;
+                    OnPropertyChanged();
+                    UpdateMonthlyActivityChart();
+                }
+            }
+        }
+
+        private DateTime _selectedMonthDate = DateTime.Today;
 
         public TimeSpan WeeklyTrackedActiveDuration
         {

@@ -38,6 +38,11 @@ namespace SystemActivityTracker.ViewModels
         /// </summary>
         public TimeSpan ReferenceTime { get; set; } = TimeSpan.FromHours(8);
 
+        /// <summary>
+        /// Controls whether to show the reference line label (e.g., "8h")
+        /// </summary>
+        public bool ShowReferenceLabel { get; set; } = true;
+
         #endregion
 
         #region Output Properties (UI Bindings)

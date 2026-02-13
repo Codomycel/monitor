@@ -369,6 +369,305 @@
             <!-- Right Pane: TabControl -->
             <TabControl Grid.Column="1" Style="{StaticResource UIATabControlStyle}" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
                 
+                <!-- Monthly Usage Tab -->
+                <TabItem Header="Monthly Usage" Style="{StaticResource UIATabItemStyle}">
+                    <TabItem.Resources>
+                        <Style x:Key="WatermarkTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource UIATextBoxStyle}">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="TextBox">
+                                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+                                            <Grid>
+                                                <TextBlock x:Name="watermark" Text="{TemplateBinding Tag}" Margin="5,0,0,0" Foreground="Gray" Visibility="Collapsed"/>
+                                                <ScrollViewer x:Name="PART_ContentHost" Focusable="False" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <MultiTrigger>
+                                                <MultiTrigger.Conditions>
+                                                    <Condition Property="IsFocused" Value="False"/>
+                                                    <Condition Property="Text" Value=""/>
+                                                </MultiTrigger.Conditions>
+                                                <Setter TargetName="watermark" Property="Visibility" Value="Visible"/>
+                                            </MultiTrigger>
+                                            <MultiTrigger>
+                                                <MultiTrigger.Conditions>
+                                                    <Condition Property="IsFocused" Value="False"/>
+                                                    <Condition Property="Text" Value="{x:Null}"/>
+                                                </MultiTrigger.Conditions>
+                                                <Setter TargetName="watermark" Property="Visibility" Value="Visible"/>
+                                            </MultiTrigger>
+                                            <Trigger Property="IsFocused" Value="True">
+                                                <Setter TargetName="watermark" Property="Visibility" Value="Collapsed"/>
+                                            </Trigger>
+                                            <Trigger Property="Text" Value="">
+                                                <Setter TargetName="watermark" Property="Visibility" Value="Collapsed"/>
+                                            </Trigger>
+                                            <Trigger Property="Text" Value="{x:Null}">
+                                                <Setter TargetName="watermark" Property="Visibility" Value="Collapsed"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                        
+                        <Style x:Key="IconOnlyButtonStyle" TargetType="Button">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="MinWidth" Value="26"/>
+                            <Setter Property="MinHeight" Value="26"/>
+                            <Setter Property="Width" Value="26"/>
+                            <Setter Property="Height" Value="26"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#11000000"/>
+                                            </Trigger>
+                                            <Trigger Property="IsPressed" Value="True">
+                                                <Setter Property="Background" Value="#22000000"/>
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter Property="Opacity" Value="0.35"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+
+                        <!-- Calendar Day Cell Style -->
+                        <Style x:Key="CalendarDayCellStyle" TargetType="Border">
+                            <Setter Property="Background" Value="White"/>
+                            <Setter Property="BorderBrush" Value="#E5E7EB"/>
+                            <Setter Property="BorderThickness" Value="1"/>
+                            <Setter Property="CornerRadius" Value="4"/>
+                            <Setter Property="Padding" Value="4"/>
+                            <Setter Property="Margin" Value="2"/>
+                            <Setter Property="MinHeight" Value="120"/>
+                            <Setter Property="MinWidth" Value="140"/>
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#F9FAFB"/>
+                                    <Setter Property="BorderBrush" Value="#D1D5DB"/>
+                                </Trigger>
+                                <DataTrigger Binding="{Binding IsCurrentMonth}" Value="False">
+                                    <Setter Property="Opacity" Value="0.4"/>
+                                    <Setter Property="IsHitTestVisible" Value="False"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsWeekend}" Value="True">
+                                    <Setter Property="Background" Value="#FFF1F2"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TabItem.Resources>
+                    <Grid Margin="0,10,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Month Selection Header -->
+                        <Border Grid.Row="0" Style="{StaticResource CardStyle}" Margin="0,0,0,10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                    <TextBlock Text="Monthly Usage" Style="{StaticResource SectionHeaderTextStyle}"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                        <TextBlock Text="Active:" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,6,0"/>
+                                        <TextBlock Text="{Binding MonthlyActiveTrackedText}" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,14,0"/>
+                                        <TextBlock Text="Total Active:" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,6,0"/>
+                                        <TextBlock Text="{Binding MonthlyTotalActiveText}" Style="{StaticResource SecondaryTextStyle}"/>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <TextBlock Text="Month:" Style="{StaticResource BodyTextStyle}"
+                                               VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <controls:MonthYearPicker SelectedMonthYear="{Binding SelectedMonthYear, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Calendar Grid -->
+                        <Border Grid.Row="1" Style="{StaticResource CardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Weekday Headers -->
+                                <Grid Grid.Row="0" Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Sun" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                    <TextBlock Grid.Column="1" Text="Mon" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                    <TextBlock Grid.Column="2" Text="Tue" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                    <TextBlock Grid.Column="3" Text="Wed" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                    <TextBlock Grid.Column="4" Text="Thu" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                    <TextBlock Grid.Column="5" Text="Fri" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                    <TextBlock Grid.Column="6" Text="Sat" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                </Grid>
+
+                                <!-- Calendar Days -->
+                                <ItemsControl Grid.Row="1" ItemsSource="{Binding MonthlyCalendarDays}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Columns="7"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource CalendarDayCellStyle}">
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="*"/>
+                                                    </Grid.RowDefinitions>
+                                                    
+                                                    <!-- Date Number -->
+                                                    <TextBlock Grid.Row="0" Text="{Binding Date, StringFormat={}{0:dd}}" 
+                                                               FontWeight="SemiBold" 
+                                                               Margin="0,0,0,4"
+                                                               HorizontalAlignment="Left"/>
+                                                    
+                                                    <!-- Activity Chart -->
+                                                    <controls:ActivityChart Grid.Row="1" 
+                                                                            DataContext="{Binding ChartViewModel}"
+                                                                            Height="80"
+                                                                            Margin="0,0,0,0"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </Border>
+
+                        <!-- Weekly Summaries -->
+                        <Border Grid.Row="2" Style="{StaticResource CardStyle}" Margin="0,8,0,0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                
+                                <TextBlock Grid.Row="0" Text="Weekly Totals" Style="{StaticResource SectionHeaderTextStyle}" Margin="0,0,0,8"/>
+                                
+                                <ItemsControl Grid.Row="1" ItemsSource="{Binding MonthlyWeeklySummaries}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="4" Padding="12,8" Margin="0,0,0,4">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    
+                                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                                        <TextBlock Text="Week" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,4,0"/>
+                                                        <TextBlock Text="{Binding WeekNumber}" Style="{StaticResource SecondaryTextStyle}" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                                                        <TextBlock Text="(" Style="{StaticResource SecondaryTextStyle}"/>
+                                                        <TextBlock Text="{Binding WeekStart, StringFormat={}{0:MMM dd}}" Style="{StaticResource SecondaryTextStyle}"/>
+                                                        <TextBlock Text=" - " Style="{StaticResource SecondaryTextStyle}"/>
+                                                        <TextBlock Text="{Binding WeekEnd, StringFormat={}{0:MMM dd}}" Style="{StaticResource SecondaryTextStyle}"/>
+                                                        <TextBlock Text=")" Style="{StaticResource SecondaryTextStyle}"/>
+                                                    </StackPanel>
+                                                    
+                                                    <TextBlock Grid.Column="1" Text="{Binding TotalActiveText}" Style="{StaticResource SecondaryTextStyle}" FontWeight="Bold" Foreground="#10B981"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </Border>
+
+                        <!-- Hidden Application Usage DataGrid -->
+                        <Border Grid.Row="3" Style="{StaticResource CardStyle}" Visibility="Collapsed">
+                            <Grid>
+                                <TextBlock Text="No data for selected month"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource SecondaryTextStyle}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsMonthlyUsageEmpty}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <DataGrid ItemsSource="{Binding MonthlyAppUsage}"
+                                          VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
+                                          ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" Margin="0"
+                                          CanUserSortColumns="True"
+                                          IsReadOnly="True">
+                                    <DataGrid.Style>
+                                        <Style TargetType="DataGrid" BasedOn="{StaticResource UIADataGridStyle}">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsMonthlyUsageEmpty}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGrid.Style>
+
+                                    <DataGrid.ColumnHeaderStyle>
+                                        <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource UIADataGridColumnHeaderStyle}"/>
+                                    </DataGrid.ColumnHeaderStyle>
+                                    <DataGrid.RowStyle>
+                                        <Style TargetType="DataGridRow" BasedOn="{StaticResource UIADataGridRowStyle}"/>
+                                    </DataGrid.RowStyle>
+                                    <DataGrid.CellStyle>
+                                        <Style TargetType="DataGridCell" BasedOn="{StaticResource UIADataGridCellStyle}"/>
+                                    </DataGrid.CellStyle>
+
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="App / Process" Binding="{Binding ProcessName}" Width="2*" SortMemberPath="ProcessName">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="TextWrapping" Value="Wrap"/>
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
+                                        <DataGridTextColumn Header="Total Active" Binding="{Binding TotalActiveText, Mode=OneWay}" Width="1*" SortMemberPath="TotalActive"/>
+                                        <DataGridTextColumn Header="Total Idle" Binding="{Binding TotalIdleText, Mode=OneWay}" Width="1*" SortMemberPath="TotalIdle"/>
+                                        <DataGridTextColumn Header="Total Locked" Binding="{Binding TotalLockedText, Mode=OneWay}" Width="1*" SortMemberPath="TotalLocked"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </TabItem>
+
                 <!-- Application Usage Tab -->
                 <TabItem Header="Application Usage" Style="{StaticResource UIATabItemStyle}">
                     <TabItem.Resources>
@@ -462,7 +761,8 @@
                                           VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
                                           ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" Margin="0,8,0,0"
                                           CanUserSortColumns="True"
-                                          IsReadOnly="True">
+                                          IsReadOnly="True"
+                                          Visibility="Collapsed">
                                     <DataGrid.ColumnHeaderStyle>
                                         <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource UIADataGridColumnHeaderStyle}"/>
                                     </DataGrid.ColumnHeaderStyle>
@@ -825,12 +1125,89 @@
 
                 <!-- Monthly Usage Tab -->
                 <TabItem Header="Monthly Usage" Style="{StaticResource UIATabItemStyle}">
+                    <TabItem.Resources>
+                        <Style x:Key="WatermarkTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource UIATextBoxStyle}">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="TextBox">
+                                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+                                            <Grid>
+                                                <TextBlock x:Name="watermark" Text="{TemplateBinding Tag}" Margin="5,0,0,0" Foreground="Gray" Visibility="Collapsed"/>
+                                                <ScrollViewer x:Name="PART_ContentHost" Focusable="False" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <MultiTrigger>
+                                                <MultiTrigger.Conditions>
+                                                    <Condition Property="IsFocused" Value="False"/>
+                                                    <Condition Property="Text" Value=""/>
+                                                </MultiTrigger.Conditions>
+                                                <Setter TargetName="watermark" Property="Visibility" Value="Visible"/>
+                                            </MultiTrigger>
+                                            <MultiTrigger>
+                                                <MultiTrigger.Conditions>
+                                                    <Condition Property="IsFocused" Value="False"/>
+                                                    <Condition Property="Text" Value="{x:Null}"/>
+                                                </MultiTrigger.Conditions>
+                                                <Setter TargetName="watermark" Property="Visibility" Value="Visible"/>
+                                            </MultiTrigger>
+                                            <Trigger Property="IsFocused" Value="True">
+                                                <Setter TargetName="watermark" Property="Visibility" Value="Collapsed"/>
+                                            </Trigger>
+                                            <Trigger Property="Text" Value="">
+                                                <Setter TargetName="watermark" Property="Visibility" Value="Collapsed"/>
+                                            </Trigger>
+                                            <Trigger Property="Text" Value="{x:Null}">
+                                                <Setter TargetName="watermark" Property="Visibility" Value="Collapsed"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                        
+                        <Style x:Key="IconOnlyButtonStyle" TargetType="Button">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="MinWidth" Value="26"/>
+                            <Setter Property="MinHeight" Value="26"/>
+                            <Setter Property="Width" Value="26"/>
+                            <Setter Property="Height" Value="26"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#11000000"/>
+                                            </Trigger>
+                                            <Trigger Property="IsPressed" Value="True">
+                                                <Setter Property="Background" Value="#22000000"/>
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter Property="Opacity" Value="0.35"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </TabItem.Resources>
                     <Grid Margin="0,10,0,0">
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
+                        <!-- Month Selection Header -->
                         <Border Grid.Row="0" Style="{StaticResource CardStyle}" Margin="0,0,0,10">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -851,15 +1228,37 @@
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                     <TextBlock Text="Month:" Style="{StaticResource BodyTextStyle}"
                                                VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                    <DatePicker SelectedDate="{Binding SelectedMonth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                Width="140" Margin="0,0,8,0"/>
-                                    <Button Content="Load" Style="{StaticResource SecondaryButtonStyle}"
-                                            Command="{Binding LoadMonthlyUsageCommand}"/>
+                                    <controls:MonthYearPicker SelectedMonthYear="{Binding SelectedMonthYear, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                 </StackPanel>
                             </Grid>
                         </Border>
 
-                        <Border Grid.Row="1" Style="{StaticResource CardStyle}">
+                        <!-- Date Selection Header -->
+                        <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,0,0,10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0" Text="Daily Activity" Style="{StaticResource SectionHeaderTextStyle}" VerticalAlignment="Center"/>
+                                
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <TextBlock Text="Date:" Style="{StaticResource BodyTextStyle}"
+                                               VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <DatePicker SelectedDate="{Binding SelectedMonthDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                Width="140" Margin="0,0,8,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Activity Chart -->
+                        <Border Grid.Row="2" Style="{StaticResource CardStyle}">
+                            <controls:ActivityChart DataContext="{Binding MonthlyActivityChartViewModel}" />
+                        </Border>
+
+                        <!-- Hidden Application Usage DataGrid -->
+                        <Border Grid.Row="2" Style="{StaticResource CardStyle}" Visibility="Collapsed">
                             <Grid>
                                 <TextBlock Text="No data for selected month"
                                            HorizontalAlignment="Center" VerticalAlignment="Center">

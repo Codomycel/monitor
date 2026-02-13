@@ -8,15 +8,21 @@
              d:DesignHeight="250" d:DesignWidth="400"
              Background="Transparent">
 
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+    </UserControl.Resources>
+
     <Grid Height="200" Margin="0,8,0,0">
         <!-- Dynamic Reference Line with Label (8h for daily, 40h for weekly) -->
         <Canvas Name="EightHourReferenceCanvas" IsHitTestVisible="False">
-            <Line Name="EightHourLine" X1="80" Y1="{Binding EightHourLinePosition}" X2="380" Y2="{Binding EightHourLinePosition}" 
+            <Line Name="EightHourLine" X1="50" Y1="{Binding EightHourLinePosition}" X2="200" Y2="{Binding EightHourLinePosition}" 
                   Stroke="#10B981" StrokeThickness="3"/>
-            <Rectangle Name="EightHourLabelBackground" Canvas.Left="28" Canvas.Top="{Binding EightHourLabelPosition}" 
-                     Width="35" Height="20" Fill="White" Stroke="#10B981" StrokeThickness="1" RadiusX="3" RadiusY="3"/>
-            <TextBlock Name="EightHourLabel" Text="{Binding ReferenceLabelText}" Canvas.Left="35" Canvas.Top="{Binding EightHourLabelTextPosition}" 
-                     FontSize="11" Foreground="#10B981" FontWeight="Bold"/>
+            <Rectangle Name="EightHourLabelBackground" Canvas.Left="5" Canvas.Top="{Binding EightHourLabelPosition}" 
+                     Width="35" Height="20" Fill="White" Stroke="#10B981" StrokeThickness="1" RadiusX="3" RadiusY="3"
+                     Visibility="{Binding ShowReferenceLabel, Converter={StaticResource BoolToVisibilityConverter}}"/>
+            <TextBlock Name="EightHourLabel" Text="{Binding ReferenceLabelText}" Canvas.Left="12" Canvas.Top="{Binding EightHourLabelTextPosition}" 
+                     FontSize="11" Foreground="#10B981" FontWeight="Bold"
+                     Visibility="{Binding ShowReferenceLabel, Converter={StaticResource BoolToVisibilityConverter}}"/>
         </Canvas>
         
         <lvc:CartesianChart Name="ActivityChartControl" 
