@@ -15,19 +15,52 @@ using SystemActivityTracker.Utilities;
 
 namespace SystemActivityTracker.ViewModels
 {
-    // Monthly Calendar Data Model
-    public class MonthlyDayItem
+    // Base class for calendar items
+    public abstract class CalendarDayItemBase
     {
-        public DateTime Date { get; set; }
+        public abstract bool IsWeeklySummary { get; }
+        public abstract bool IsCurrentMonth { get; set; }
+        public abstract bool IsWeekend { get; }
+        public abstract bool HasData { get; }
+        public abstract DateTime Date { get; set; }
+        public abstract int WeekNumber { get; set; }
+    }
+
+    // Monthly Calendar Data Model
+    public class MonthlyDayItem : CalendarDayItemBase
+    {
+        private int _weekNumber;
+        
+        public override DateTime Date { get; set; }
         public TimeSpan TotalActive { get; set; }
         public TimeSpan TotalIdle { get; set; }
         public TimeSpan TotalLocked { get; set; }
         public TimeSpan ManualTime { get; set; }
-        public bool IsCurrentMonth { get; set; }
-        public bool IsWeekend => Date.DayOfWeek == DayOfWeek.Saturday || Date.DayOfWeek == DayOfWeek.Sunday;
-        public bool HasData => TotalActive > TimeSpan.Zero || TotalIdle > TimeSpan.Zero || TotalLocked > TimeSpan.Zero || ManualTime > TimeSpan.Zero;
-        public int WeekNumber => System.Globalization.CultureInfo.CurrentCulture.Calendar.GetWeekOfYear(Date, System.Globalization.CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Sunday);
+        public override bool IsCurrentMonth { get; set; }
+        public override bool IsWeekend => Date.DayOfWeek == DayOfWeek.Saturday || Date.DayOfWeek == DayOfWeek.Sunday;
+        public override bool HasData => TotalActive > TimeSpan.Zero || TotalIdle > TimeSpan.Zero || TotalLocked > TimeSpan.Zero || ManualTime > TimeSpan.Zero;
+        public override int WeekNumber { get => _weekNumber; set => _weekNumber = value; }
+        public override bool IsWeeklySummary => false;
         public ActivityChartViewModel? ChartViewModel { get; set; }
+        public bool IsFuture { get; set; }
+        public bool HasChart { get; set; }
+    }
+
+    // Weekly Summary Data Model for Calendar Grid
+    public class WeeklySummaryDayItem : CalendarDayItemBase
+    {
+        private int _weekNumber;
+        private DateTime _date = DateTime.MinValue;
+        private bool _isCurrentMonth = true;
+        
+        public override int WeekNumber { get => _weekNumber; set => _weekNumber = value; }
+        public TimeSpan TotalActiveHours { get; set; }
+        public string TotalActiveText => $"{(int)TotalActiveHours.TotalHours}h {TotalActiveHours.Minutes}m";
+        public override bool IsWeeklySummary => true;
+        public override bool IsCurrentMonth { get => _isCurrentMonth; set => _isCurrentMonth = value; }
+        public override bool IsWeekend => false;
+        public override bool HasData => TotalActiveHours > TimeSpan.Zero;
+        public override DateTime Date { get => _date; set => _date = value; }
     }
 
     // Weekly Summary Data Model
@@ -73,7 +106,7 @@ namespace SystemActivityTracker.ViewModels
         private DateTime _weekStartDate;
         private readonly ObservableCollection<DailySummary> _weeklySummaries = new ObservableCollection<DailySummary>();
         private readonly ObservableCollection<MonthlyAppUsageDto> _monthlyAppUsage = new ObservableCollection<MonthlyAppUsageDto>();
-        private readonly ObservableCollection<MonthlyDayItem> _monthlyCalendarDays = new ObservableCollection<MonthlyDayItem>();
+        private readonly ObservableCollection<CalendarDayItemBase> _monthlyCalendarDays = new ObservableCollection<CalendarDayItemBase>();
         private readonly ObservableCollection<WeeklySummaryItem> _monthlyWeeklySummaries = new ObservableCollection<WeeklySummaryItem>();
         private bool _isMonthlyUsageEmpty = true;
         private TimeSpan _weeklyTrackedActiveDuration;
@@ -657,7 +690,7 @@ namespace SystemActivityTracker.ViewModels
         public ObservableCollection<AppUsageSummary> TodayAppUsage => _todayAppUsage;
         public ObservableCollection<DailySummary> WeeklySummaries => _weeklySummaries;
         public ObservableCollection<MonthlyAppUsageDto> MonthlyAppUsage => _monthlyAppUsage;
-        public ObservableCollection<MonthlyDayItem> MonthlyCalendarDays => _monthlyCalendarDays;
+        public ObservableCollection<CalendarDayItemBase> MonthlyCalendarDays => _monthlyCalendarDays;
         public ObservableCollection<WeeklySummaryItem> MonthlyWeeklySummaries => _monthlyWeeklySummaries;
 
         public bool IsMonthlyUsageEmpty
@@ -683,11 +716,16 @@ namespace SystemActivityTracker.ViewModels
                 {
                     _selectedDate = normalized;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsSelectedDateInFuture));
                     ApplyLiveRefreshSettings();
                     RefreshForSelectedDate();
                 }
             }
         }
+
+        public bool ShowSelectedDayChart => !IsSelectedDateInFuture && (TotalActiveTimeToday + TotalIdleTimeToday + TotalLockedTimeToday + _selectedDayManualDuration) > TimeSpan.Zero;
+
+        public bool IsSelectedDateInFuture => SelectedDate.Date > DateTime.Today;
 
         public ObservableCollection<ManualTaskEntry> ManualTasks => _manualTasks;
 
@@ -818,7 +856,10 @@ namespace SystemActivityTracker.ViewModels
         {
             OnPropertyChanged(nameof(SelectedDayStartText));
             OnPropertyChanged(nameof(SelectedDayEndText));
-            UpdateActivityChart();
+            if (!IsSelectedDateInFuture)
+            {
+                UpdateActivityChart();
+            }
         }
 
         private bool IsSelectedDateInCurrentWeek()
@@ -913,9 +954,30 @@ namespace SystemActivityTracker.ViewModels
                 var dayItem = new MonthlyDayItem
                 {
                     Date = date,
-                    IsCurrentMonth = date.Month == _selectedMonth && date.Year == _selectedYear,
-                    ChartViewModel = new ActivityChartViewModel { ReferenceTime = TimeSpan.FromHours(8), ShowReferenceLabel = false }
+                    IsCurrentMonth = date.Month == _selectedMonth && date.Year == _selectedYear
                 };
+
+                dayItem.IsFuture = date.Date > DateTime.Today;
+                if (!dayItem.IsFuture)
+                {
+                    var chartViewModel = new ActivityChartViewModel();
+                    chartViewModel.ReferenceTime = TimeSpan.FromHours(8);
+                    chartViewModel.ShowReferenceLabel = false;
+                    chartViewModel.ShowLegend = false;
+                    chartViewModel.ShowDataLabels = false;
+                    chartViewModel.ShowTotalActivityOnly = true; // Show only Total Activity bar in month view
+                    chartViewModel.UpdateBarSizing(90, 80); // Slightly larger for monthly calendar to increase bar width
+                    chartViewModel.XAxisLabels = new string[] { "", "", "" }; // Hide axis labels for compact monthly view
+                    dayItem.ChartViewModel = chartViewModel;
+                    dayItem.HasChart = true;
+                }
+                else
+                {
+                    dayItem.HasChart = false;
+                }
+
+                // Set week number
+                dayItem.WeekNumber = System.Globalization.CultureInfo.CurrentCulture.Calendar.GetWeekOfYear(date, System.Globalization.CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Sunday);
 
                 if (dayItem.IsCurrentMonth)
                 {
@@ -949,8 +1011,11 @@ namespace SystemActivityTracker.ViewModels
                     dayItem.TotalLocked = lockedTime;
                     dayItem.ManualTime = manualTime;
 
-                    // Set chart data
-                    dayItem.ChartViewModel.SetData(activeTime, manualTime, idleTime, lockedTime);
+                    // Set chart data (only if a chart view model exists - future dates may not have one)
+                    if (dayItem.ChartViewModel != null)
+                    {
+                        dayItem.ChartViewModel.SetData(activeTime, manualTime, idleTime, lockedTime);
+                    }
                 }
 
                 _monthlyCalendarDays.Add(dayItem);
@@ -958,24 +1023,86 @@ namespace SystemActivityTracker.ViewModels
 
             // Calculate weekly summaries
             var weeklyGroups = _monthlyCalendarDays
-                .Where(d => d.IsCurrentMonth)
+                .Where(d => d.IsCurrentMonth && d is MonthlyDayItem)
+                .Cast<MonthlyDayItem>()
                 .GroupBy(d => d.WeekNumber)
-                .OrderBy(g => g.Key);
+                .OrderBy(g => g.Key)
+                .ToDictionary(g => g.Key, g => TimeSpan.FromSeconds(g.Sum(d => (d.TotalActive + d.ManualTime).TotalSeconds)));
 
-            foreach (var weekGroup in weeklyGroups)
+            // Create the final calendar grid with proper layout
+            var finalCalendarItems = new List<CalendarDayItemBase>();
+            var currentWeekItems = new List<CalendarDayItemBase>();
+            int currentWeekNumber = -1;
+
+            foreach (var item in _monthlyCalendarDays)
             {
-                var weekDays = weekGroup.ToList();
-                var weekStart = weekDays.Min(d => d.Date);
-                var weekEnd = weekDays.Max(d => d.Date);
-                var totalActive = TimeSpan.FromSeconds(weekDays.Sum(d => (d.TotalActive + d.ManualTime).TotalSeconds));
-
-                _monthlyWeeklySummaries.Add(new WeeklySummaryItem
+                if (item is MonthlyDayItem dayItem)
                 {
-                    WeekNumber = weekGroup.Key,
-                    WeekStart = weekStart,
-                    WeekEnd = weekEnd,
-                    TotalActiveHours = totalActive
-                });
+                    // Check if we're moving to a new week
+                    if (dayItem.WeekNumber != currentWeekNumber)
+                    {
+                        // Add previous week items + summary if we had a week
+                        if (currentWeekItems.Count > 0)
+                        {
+                            finalCalendarItems.AddRange(currentWeekItems);
+                            
+                            // Add weekly summary if we have data for this week
+                            if (weeklyGroups.TryGetValue(currentWeekNumber, out var weekTotal))
+                            {
+                                var summaryItem = new WeeklySummaryDayItem
+                                {
+                                    WeekNumber = currentWeekNumber,
+                                    TotalActiveHours = weekTotal
+                                };
+                                finalCalendarItems.Add(summaryItem);
+                            }
+                            
+                            // Fill remaining slots in the week if needed
+                            while (currentWeekItems.Count < 8)
+                            {
+                                currentWeekItems.Add(new WeeklySummaryDayItem { WeekNumber = currentWeekNumber, TotalActiveHours = TimeSpan.Zero });
+                            }
+                        }
+                        
+                        // Start new week
+                        currentWeekItems = new List<CalendarDayItemBase> { dayItem };
+                        currentWeekNumber = dayItem.WeekNumber;
+                    }
+                    else
+                    {
+                        currentWeekItems.Add(dayItem);
+                    }
+                }
+            }
+
+            // Add the last week
+            if (currentWeekItems.Count > 0)
+            {
+                finalCalendarItems.AddRange(currentWeekItems);
+                
+                // Add weekly summary for the last week
+                if (weeklyGroups.TryGetValue(currentWeekNumber, out var weekTotal))
+                {
+                    var summaryItem = new WeeklySummaryDayItem
+                    {
+                        WeekNumber = currentWeekNumber,
+                        TotalActiveHours = weekTotal
+                    };
+                    finalCalendarItems.Add(summaryItem);
+                }
+                
+                // Fill remaining slots in the last week if needed
+                while (currentWeekItems.Count < 8)
+                {
+                    currentWeekItems.Add(new WeeklySummaryDayItem { WeekNumber = currentWeekNumber, TotalActiveHours = TimeSpan.Zero });
+                }
+            }
+
+            // Clear and rebuild the calendar collection with proper layout
+            _monthlyCalendarDays.Clear();
+            foreach (var item in finalCalendarItems)
+            {
+                _monthlyCalendarDays.Add(item);
             }
 
             IsMonthlyUsageEmpty = _monthlyAppUsage.Count == 0;
@@ -1067,9 +1194,14 @@ namespace SystemActivityTracker.ViewModels
                     _weekStartDate = normalized;
                     OnPropertyChanged();
                     UpdateWeekHeaderTexts();
+                    OnPropertyChanged(nameof(IsSelectedWeekInFuture));
+                    // reload weekly data for new week
+                    LoadWeeklySummary();
                 }
             }
         }
+
+        public bool IsSelectedWeekInFuture => WeekStartDate.Date > DateTime.Today;
 
         public string WeekNumberText => $"Week {ISOWeek.GetWeekOfYear(WeekStartDate.Date)}";
 
@@ -1239,6 +1371,9 @@ namespace SystemActivityTracker.ViewModels
                 TotalIdleTimeToday,
                 TotalLockedTimeToday
             );
+            
+            // Update bar sizing for larger selected day chart
+            _activityChartViewModel.UpdateBarSizing(500, 700); // Double height for selected day
         }
 
         private void UpdateWeeklyActivityChart()
@@ -1249,6 +1384,9 @@ namespace SystemActivityTracker.ViewModels
                 WeeklyTotalIdleDuration,
                 WeeklyTotalLockedDuration
             );
+            
+            // Update bar sizing for weekly chart
+            _weeklyActivityChartViewModel.UpdateBarSizing(450, 600); // Double height for weekly chart
         }
 
         private void UpdateMonthlyActivityChart()
@@ -1619,6 +1757,7 @@ namespace SystemActivityTracker.ViewModels
             {
                 RefreshSelectedDayManualDuration();
                 NotifySelectedDaySummaryTextsChanged();
+                OnPropertyChanged(nameof(ShowSelectedDayChart));
                 return;
             }
 
@@ -1680,6 +1819,7 @@ namespace SystemActivityTracker.ViewModels
             // Ensure labeled summary text updates even if totals did not change
             RefreshSelectedDayManualDuration();
             NotifySelectedDaySummaryTextsChanged();
+            OnPropertyChanged(nameof(ShowSelectedDayChart));
         }
 
         private void RefreshSelectedDaySummary()
@@ -1753,7 +1893,10 @@ namespace SystemActivityTracker.ViewModels
             WeeklyTotalIdleDuration = TimeSpan.FromTicks(_weeklySummaries.Sum(d => d.IdleDuration.Ticks));
             WeeklyTotalLockedDuration = TimeSpan.FromTicks(_weeklySummaries.Sum(d => d.LockedDuration.Ticks));
             
-            UpdateWeeklyActivityChart();
+            if (!IsSelectedWeekInFuture)
+            {
+                UpdateWeeklyActivityChart();
+            }
         }
 
         private void ApplyLiveRefreshSettings()

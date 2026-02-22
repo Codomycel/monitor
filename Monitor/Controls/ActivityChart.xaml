@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
+             xmlns:conv="clr-namespace:SystemActivityTracker.Converters"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
@@ -10,9 +11,13 @@
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <conv:BooleanToLegendLocationConverter x:Key="BoolToLegendLocationConverter"/>
+        
+        <!-- Theme-aware X-axis color brush -->
+        <SolidColorBrush x:Key="XAxisBrush" Color="#666"/>
     </UserControl.Resources>
 
-    <Grid Height="200" Margin="0,8,0,0">
+    <Grid Margin="4" MinHeight="70" MaxHeight="800">
         <!-- Dynamic Reference Line with Label (8h for daily, 40h for weekly) -->
         <Canvas Name="EightHourReferenceCanvas" IsHitTestVisible="False">
             <Line Name="EightHourLine" X1="50" Y1="{Binding EightHourLinePosition}" X2="200" Y2="{Binding EightHourLinePosition}" 
@@ -27,7 +32,7 @@
         
         <lvc:CartesianChart Name="ActivityChartControl" 
                            Background="Transparent" 
-                           LegendLocation="Bottom"
+                           LegendLocation="{Binding ShowLegend, Converter={StaticResource BoolToLegendLocationConverter}}"
                            Series="{Binding ChartSeries}"
                            Hoverable="True"
                            DataTooltip="{x:Null}">
@@ -43,7 +48,16 @@
                 </lvc:Axis>
             </lvc:CartesianChart.AxisY>
             <lvc:CartesianChart.AxisX>
-                <lvc:Axis Labels="{Binding XAxisLabels}" />
+                <lvc:Axis Labels="{Binding XAxisLabels}" 
+                         ShowLabels="True"
+                         MinValue="0">
+                    <lvc:Axis.Separator>
+                        <lvc:Separator IsEnabled="True" 
+                                       StrokeThickness="2" 
+                                       Stroke="{Binding XAxisBrush}"
+                                       StrokeDashArray=""/>
+                    </lvc:Axis.Separator>
+                </lvc:Axis>
             </lvc:CartesianChart.AxisX>
             
             <!-- Enhanced Custom Tooltip -->

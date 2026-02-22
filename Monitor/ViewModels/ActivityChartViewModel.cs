@@ -6,6 +6,7 @@ using System.Windows.Media;
 using LiveCharts;
 using LiveCharts.Wpf;
 using SystemActivityTracker.Utilities;
+using System.Windows;
 
 namespace SystemActivityTracker.ViewModels
 {
@@ -43,6 +44,103 @@ namespace SystemActivityTracker.ViewModels
         /// </summary>
         public bool ShowReferenceLabel { get; set; } = true;
 
+        /// <summary>
+        /// Controls whether to show the chart legend
+        /// </summary>
+        public bool ShowLegend { get; set; } = true;
+        
+        /// <summary>
+        /// Controls whether data labels are shown on bars
+        /// </summary>
+        public bool ShowDataLabels { get; set; } = true;
+
+        /// <summary>
+        /// Controls whether to show only Total Activity bar (for month view)
+        /// </summary>
+        private bool _showTotalActivityOnly = false;
+        public bool ShowTotalActivityOnly 
+        { 
+            get => _showTotalActivityOnly;
+            set
+            {
+                _showTotalActivityOnly = value;
+                OnPropertyChanged();
+            }
+        }
+
+        /// <summary>
+        /// Controls the maximum column width for bars (responsive sizing)
+        /// </summary>
+        public double MaxColumnWidth { get; set; } = 25;
+
+        /// <summary>
+        /// Controls the column padding between bars
+        /// </summary>
+        public double ColumnPadding { get; set; } = 3;
+
+        /// <summary>
+        /// Updates bar sizing based on available chart dimensions
+        /// </summary>
+        /// <param name="availableWidth">Available width for the chart</param>
+        /// <param name="availableHeight">Available height for the chart</param>
+        public void UpdateBarSizing(double availableWidth, double availableHeight)
+        {
+            // Calculate optimal bar size based on available space
+            var minDimension = Math.Min(availableWidth, availableHeight);
+            
+            if (minDimension < 100) // Very small charts (monthly calendar)
+            {
+                MaxColumnWidth = 14;
+                ColumnPadding = 3; // increase gap for readability
+            }
+            else if (minDimension < 200) // Small charts
+            {
+                MaxColumnWidth = 18;
+                ColumnPadding = 3;
+            }
+            else if (minDimension < 300) // Medium charts
+            {
+                MaxColumnWidth = 22;
+                ColumnPadding = 4;
+            }
+            else // Large charts (selected day, weekly views)
+            {
+                MaxColumnWidth = 28;
+                ColumnPadding = 5;
+            }
+
+            // Apply sizing to any existing series so UI updates immediately
+            try
+            {
+                foreach (var s in ChartSeries)
+                {
+                    if (s is ColumnSeries cs)
+                    {
+                        cs.MaxColumnWidth = MaxColumnWidth;
+                        cs.ColumnPadding = ColumnPadding;
+                    }
+                }
+            }
+            catch
+            {
+                // ignore if ChartSeries not yet initialized
+            }
+        }
+
+        /// <summary>
+        /// Theme-aware X-axis brush color
+        /// </summary>
+        public System.Windows.Media.Brush XAxisBrush
+        {
+            get
+            {
+                // Detect current theme (simplified detection)
+                var isDarkTheme = IsDarkThemeEnabled();
+                var color = isDarkTheme ? System.Windows.Media.Color.FromRgb(204, 204, 204) : System.Windows.Media.Color.FromRgb(102, 102, 102); // #CCC for dark, #666 for light
+                return new SolidColorBrush(color);
+            }
+        }
+
         #endregion
 
         #region Output Properties (UI Bindings)
@@ -62,7 +160,7 @@ namespace SystemActivityTracker.ViewModels
         public string[] XAxisLabels
         {
             get => _xAxisLabels;
-            private set
+            set
             {
                 _xAxisLabels = value;
                 OnPropertyChanged();
@@ -247,29 +345,35 @@ namespace SystemActivityTracker.ViewModels
                 var totalActiveSeries = new ColumnSeries
                 {
                     Title = "Total Active",
-                    Values = new ChartValues<double> { 0.0 },
-                    DataLabels = true,
-                    StrokeThickness = 0
+                    Values = new ChartValues<double> { 0.1 }, // Start with small non-zero value
+                    DataLabels = ShowDataLabels,
+                    StrokeThickness = 0,
+                    ColumnPadding = ColumnPadding,  // Use responsive padding
+                    MaxColumnWidth = MaxColumnWidth  // Use responsive max width
                 };
 
                 // Locked series (index 1)
                 var lockedSeries = new ColumnSeries
                 {
                     Title = "Locked",
-                    Values = new ChartValues<double> { 0.0 },
-                    DataLabels = true,
+                    Values = new ChartValues<double> { 0.1 }, // Start with small non-zero value
+                    DataLabels = ShowDataLabels,
                     StrokeThickness = 0,
-                    Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(107, 114, 128)) // #6B7280 (Neutral Grey)
+                    Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(107, 114, 128)), // #6B7280 (Neutral Grey)
+                    ColumnPadding = ColumnPadding,  // Use responsive padding
+                    MaxColumnWidth = MaxColumnWidth   // Use responsive max width
                 };
 
                 // Idle series (index 2)
                 var idleSeries = new ColumnSeries
                 {
                     Title = "Idle",
-                    Values = new ChartValues<double> { 0.0 },
-                    DataLabels = true,
+                    Values = new ChartValues<double> { 0.1 }, // Start with small non-zero value
+                    DataLabels = ShowDataLabels,
                     StrokeThickness = 0,
-                    Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(156, 163, 175)) // #9CA3AF (Light Grey)
+                    Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(156, 163, 175)), // #9CA3AF (Light Grey)
+                    ColumnPadding = ColumnPadding,  // Use responsive padding
+                    MaxColumnWidth = MaxColumnWidth   // Use responsive max width
                 };
 
                 ChartSeries.Add(totalActiveSeries);
@@ -280,20 +384,39 @@ namespace SystemActivityTracker.ViewModels
 
         private void UpdateChartData()
         {
-            if (ChartSeries.Count < 3) return;
+            InitializeChartIfNeeded();
+
+            if (ChartSeries == null || ChartSeries.Count < 3) return;
 
             // Use seconds as the base unit for all calculations
             var totalActiveSeconds = (TotalActiveTime + ManualTasksDuration).TotalSeconds;
             var lockedSeconds = LockedTime.TotalSeconds;
             var idleSeconds = IdleTime.TotalSeconds;
 
-            // Calculate Y-axis max with 10% padding
+            // Ensure minimum values to prevent rendering issues
+            if (totalActiveSeconds < 0.1) totalActiveSeconds = 0.1;
+            if (lockedSeconds < 0.1) lockedSeconds = 0.1;
+            if (idleSeconds < 0.1) idleSeconds = 0.1;
+
+            // When ShowTotalActivityOnly, zero out locked/idle so they don't render.
+            // Do NOT set ColumnSeries.Visibility — LiveCharts throws NRE in
+            // OnIsVisibleChanged when the series is not yet in a visual tree.
+            if (ShowTotalActivityOnly)
+            {
+                lockedSeconds = 0;
+                idleSeconds = 0;
+            }
+
+            // Calculate Y-axis max with 10% padding, but ensure minimum scale
             var maxValue = Math.Max(totalActiveSeconds, Math.Max(lockedSeconds, idleSeconds));
             var referenceSeconds = ReferenceTime.TotalSeconds;
             YAxisMax = Math.Max(referenceSeconds, maxValue) * 1.1;
+            
+            // Ensure minimum Y-axis max to prevent rendering issues
+            if (YAxisMax < 3600) YAxisMax = 3600; // Minimum 1 hour
 
             // Calculate reference line position (in chart coordinates)
-            var chartHeight = 180.0; // Chart area is approximately 180px tall
+            var chartHeight = 200.0;
             EightHourLinePosition = chartHeight - (referenceSeconds / YAxisMax * chartHeight);
             EightHourLabelPosition = EightHourLinePosition - 10;
             EightHourLabelTextPosition = EightHourLinePosition - 8;
@@ -303,35 +426,25 @@ namespace SystemActivityTracker.ViewModels
             ReferenceLabelText = $"{referenceHours:F0}h";
 
             // Update Total Active series (index 0)
-            if (ChartSeries[0].Values.Count > 0)
+            if (ChartSeries[0] is ColumnSeries totalActiveSeries && totalActiveSeries.Values != null && totalActiveSeries.Values.Count > 0)
             {
-                ChartSeries[0].Values[0] = totalActiveSeconds;
-                // Apply conditional coloring to Total Active bar
-                if (ChartSeries[0] is ColumnSeries totalActiveSeries)
-                {
-                    totalActiveSeries.Fill = GetTotalActiveColor(totalActiveSeconds / 60.0); // Convert to minutes for color calculation
-                    totalActiveSeries.LabelPoint = point => FormatSummaryLabel(totalActiveSeconds);
-                }
+                totalActiveSeries.Values[0] = totalActiveSeconds;
+                totalActiveSeries.Fill = GetTotalActiveColor(totalActiveSeconds / 60.0);
+                totalActiveSeries.LabelPoint = point => FormatSummaryLabel(totalActiveSeconds);
             }
 
             // Update Locked series (index 1)
-            if (ChartSeries[1].Values.Count > 0)
+            if (ChartSeries[1] is ColumnSeries lockedSeries && lockedSeries.Values != null && lockedSeries.Values.Count > 0)
             {
-                ChartSeries[1].Values[0] = lockedSeconds;
-                if (ChartSeries[1] is ColumnSeries lockedSeries)
-                {
-                    lockedSeries.LabelPoint = point => FormatSummaryLabel(lockedSeconds);
-                }
+                lockedSeries.Values[0] = lockedSeconds;
+                lockedSeries.LabelPoint = point => FormatSummaryLabel(lockedSeconds);
             }
 
             // Update Idle series (index 2)
-            if (ChartSeries[2].Values.Count > 0)
+            if (ChartSeries[2] is ColumnSeries idleSeries && idleSeries.Values != null && idleSeries.Values.Count > 0)
             {
-                ChartSeries[2].Values[0] = idleSeconds;
-                if (ChartSeries[2] is ColumnSeries idleSeries)
-                {
-                    idleSeries.LabelPoint = point => FormatSummaryLabel(idleSeconds);
-                }
+                idleSeries.Values[0] = idleSeconds;
+                idleSeries.LabelPoint = point => FormatSummaryLabel(idleSeconds);
             }
 
             // Notify property changes for computed properties
@@ -417,6 +530,47 @@ namespace SystemActivityTracker.ViewModels
             var hours = (int)timeSpan.TotalHours;
             var mins = timeSpan.Minutes;
             return $"{hours}.{mins:D2}h";
+        }
+
+        /// <summary>
+        /// Detects if dark theme is enabled (simplified implementation)
+        /// </summary>
+        private bool IsDarkThemeEnabled()
+        {
+            try
+            {
+                // Try to detect theme from system settings
+                var app = System.Windows.Application.Current;
+                if (app?.Resources != null)
+                {
+                    // Check for common dark theme indicators
+                    if (app.Resources.Contains("SystemControlBackgroundBaseHighBrush"))
+                    {
+                        var brush = app.Resources["SystemControlBackgroundBaseHighBrush"] as SolidColorBrush;
+                        if (brush != null)
+                        {
+                            // If background is dark, it's dark theme
+                            var brightness = (brush.Color.R * 0.299) + (brush.Color.G * 0.587) + (brush.Color.B * 0.114);
+                            return brightness < 128; // Threshold for dark theme
+                        }
+                    }
+                }
+                
+                // Fallback: Check system preference
+                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"))
+                {
+                    if (key?.GetValue("AppsUseLightTheme") is int lightThemeValue)
+                    {
+                        return lightThemeValue == 0; // 0 = dark theme, 1 = light theme
+                    }
+                }
+            }
+            catch
+            {
+                // If detection fails, default to light theme
+            }
+            
+            return false; // Default to light theme
         }
 
         #endregion

@@ -21,6 +21,8 @@
         <conv:DecimalHoursConverter x:Key="DecimalHoursConverter"/>
         <conv:Subtract10Converter x:Key="Subtract10Converter"/>
         <conv:Subtract8Converter x:Key="Subtract8Converter"/>
+        <conv:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
     </Window.Resources>
 
     <Grid>
@@ -221,9 +223,8 @@
                                             Width="140"/>
                             </Grid>
 
-                            <TextBlock Text="PC Session" Style="{StaticResource SecondaryTextStyle}" FontWeight="SemiBold" Margin="0,0,0,4"/>
-
-                            <Grid>
+                            <!-- Hidden Started/Ended Grid -->
+                            <Grid Visibility="Collapsed">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
@@ -240,8 +241,25 @@
                                            HorizontalAlignment="Left"/>
                             </Grid>
 
-                            <controls:ActivityChart Margin="0,12,0,0" 
-                                                  DataContext="{Binding ActivityChartViewModel}" />
+                            <ContentControl Content="{Binding ActivityChartViewModel}">
+                                <ContentControl.ContentTemplate>
+                                    <DataTemplate>
+                                        <controls:ActivityChart Height="195" Margin="0,12,0,0" DataContext="{Binding}"/>
+                                    </DataTemplate>
+                                </ContentControl.ContentTemplate>
+                            </ContentControl>
+                        <TextBlock Text="No data available for future dates." 
+                                   FontSize="16" 
+                                   FontWeight="SemiBold"
+                                   Foreground="#6B7280"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Visibility="{Binding IsSelectedDateInFuture, Converter={StaticResource BoolToVisibilityConverter}}"
+                                   Margin="0,20,0,0">
+                            <TextBlock.Effect>
+                                <DropShadowEffect BlurRadius="4" ShadowDepth="2" Opacity="0.3" Color="#000000"/>
+                            </TextBlock.Effect>
+                        </TextBlock>
                         </StackPanel>
                     </Border>
 
@@ -259,7 +277,25 @@
                             <TextBlock Text="{Binding WeekNumberText}" Style="{StaticResource SecondaryTextStyle}"/>
                             <TextBlock Text="{Binding WeekRangeText}" Style="{StaticResource SecondaryTextStyle}" Margin="0,2,0,8"/>
 
-                            <controls:ActivityChart DataContext="{Binding WeeklyActivityChartViewModel}" />
+                            <ContentControl Content="{Binding WeeklyActivityChartViewModel}">
+                                <ContentControl.ContentTemplate>
+                                    <DataTemplate>
+                                        <controls:ActivityChart Height="195" DataContext="{Binding}"/>
+                                    </DataTemplate>
+                                </ContentControl.ContentTemplate>
+                            </ContentControl>
+                        <TextBlock Text="No data available for future week." 
+                                   FontSize="16" 
+                                   FontWeight="SemiBold"
+                                   Foreground="#6B7280"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Visibility="{Binding IsSelectedWeekInFuture, Converter={StaticResource BoolToVisibilityConverter}}"
+                                   Margin="0,20,0,0">
+                            <TextBlock.Effect>
+                                <DropShadowEffect BlurRadius="4" ShadowDepth="2" Opacity="0.3" Color="#000000"/>
+                            </TextBlock.Effect>
+                        </TextBlock>
                         </StackPanel>
                     </Border>
 
@@ -372,6 +408,12 @@
                 <!-- Monthly Usage Tab -->
                 <TabItem Header="Monthly Usage" Style="{StaticResource UIATabItemStyle}">
                     <TabItem.Resources>
+                    
+                    <!-- Inverted Boolean to Visibility Converter (moved to Window resources) -->
+                    
+                    <!-- Boolean to Legend Location Converter -->
+                    <conv:BooleanToLegendLocationConverter x:Key="BoolToLegendLocationConverter"/>
+                    
                         <Style x:Key="WatermarkTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource UIATextBoxStyle}">
                             <Setter Property="Template">
                                 <Setter.Value>
@@ -456,10 +498,15 @@
                             <Setter Property="Margin" Value="2"/>
                             <Setter Property="MinHeight" Value="120"/>
                             <Setter Property="MinWidth" Value="140"/>
+                            <Setter Property="Effect">
+                                <Setter.Value>
+                                    <DropShadowEffect Color="#000000" Opacity="0.25" ShadowDepth="4" BlurRadius="8" Direction="315"/>
+                                </Setter.Value>
+                            </Setter>
                             <Style.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#F9FAFB"/>
                                     <Setter Property="BorderBrush" Value="#D1D5DB"/>
+                                    <Setter Property="Background" Value="#F9FAFB"/>
                                 </Trigger>
                                 <DataTrigger Binding="{Binding IsCurrentMonth}" Value="False">
                                     <Setter Property="Opacity" Value="0.4"/>
@@ -475,7 +522,6 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
@@ -514,30 +560,22 @@
                                 </Grid.RowDefinitions>
 
                                 <!-- Weekday Headers -->
-                                <Grid Grid.Row="0" Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Sun" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
-                                    <TextBlock Grid.Column="1" Text="Mon" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
-                                    <TextBlock Grid.Column="2" Text="Tue" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
-                                    <TextBlock Grid.Column="3" Text="Wed" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
-                                    <TextBlock Grid.Column="4" Text="Thu" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
-                                    <TextBlock Grid.Column="5" Text="Fri" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
-                                    <TextBlock Grid.Column="6" Text="Sat" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
-                                </Grid>
+                                <UniformGrid Grid.Row="0" Columns="8" Margin="0,0,0,8">
+                                    <TextBlock Text="Sun" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                    <TextBlock Text="Mon" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                    <TextBlock Text="Tue" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                    <TextBlock Text="Wed" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                    <TextBlock Text="Thu" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                    <TextBlock Text="Fri" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                    <TextBlock Text="Sat" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                    <TextBlock Text="Summary" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}" Foreground="#10B981"/>
+                                </UniformGrid>
 
                                 <!-- Calendar Days -->
                                 <ItemsControl Grid.Row="1" ItemsSource="{Binding MonthlyCalendarDays}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
-                                            <UniformGrid Columns="7"/>
+                                            <UniformGrid Columns="8" Rows="6"/>
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
@@ -549,56 +587,59 @@
                                                         <RowDefinition Height="*"/>
                                                     </Grid.RowDefinitions>
                                                     
-                                                    <!-- Date Number -->
+                                                    <!-- Date Number (only for regular days) -->
                                                     <TextBlock Grid.Row="0" Text="{Binding Date, StringFormat={}{0:dd}}" 
                                                                FontWeight="SemiBold" 
                                                                Margin="0,0,0,4"
-                                                               HorizontalAlignment="Left"/>
+                                                               HorizontalAlignment="Left"
+                                                               Visibility="{Binding IsWeeklySummary, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
                                                     
-                                                    <!-- Activity Chart -->
-                                                    <controls:ActivityChart Grid.Row="1" 
-                                                                            DataContext="{Binding ChartViewModel}"
-                                                                            Height="80"
-                                                                            Margin="0,0,0,0"/>
-                                                </Grid>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </Grid>
-                        </Border>
+                                                    <!-- Week Number (only for summary cells) -->
+                                                    <TextBlock Grid.Row="0" Text="{Binding WeekNumber, StringFormat=W{0}}" 
+                                                               FontWeight="Bold" 
+                                                               Margin="0,0,0,4"
+                                                               HorizontalAlignment="Center"
+                                                               Style="{StaticResource SecondaryTextStyle}"
+                                                               Visibility="{Binding IsWeeklySummary, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                                    
+                                                    <!-- Activity Chart / Future placeholder / Weekly Summary -->
+                                                    <Grid Grid.Row="1">
+                                                        <!-- Activity chart: visible only when not future and not weekly summary -->
+                                                        <controls:ActivityChart DataContext="{Binding ChartViewModel}"
+                                                                                Margin="6,6,6,12"
+                                                                                Height="90"
+                                                                                MaxHeight="110"
+                                                                                VerticalAlignment="Top"
+                                                                                HorizontalAlignment="Stretch">
+                                                            <controls:ActivityChart.Style>
+                                                                <Style TargetType="controls:ActivityChart">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <MultiDataTrigger>
+                                                                            <MultiDataTrigger.Conditions>
+                                                                                <Condition Binding="{Binding DataContext.IsFuture, RelativeSource={RelativeSource AncestorType=Border}}" Value="False"/>
+                                                                                <Condition Binding="{Binding DataContext.HasChart, RelativeSource={RelativeSource AncestorType=Border}}" Value="True"/>
+                                                                                <Condition Binding="{Binding DataContext.IsWeeklySummary, RelativeSource={RelativeSource AncestorType=Border}}" Value="False"/>
+                                                                            </MultiDataTrigger.Conditions>
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </MultiDataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </controls:ActivityChart.Style>
+                                                        </controls:ActivityChart>
 
-                        <!-- Weekly Summaries -->
-                        <Border Grid.Row="2" Style="{StaticResource CardStyle}" Margin="0,8,0,0">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                </Grid.RowDefinitions>
-                                
-                                <TextBlock Grid.Row="0" Text="Weekly Totals" Style="{StaticResource SectionHeaderTextStyle}" Margin="0,0,0,8"/>
-                                
-                                <ItemsControl Grid.Row="1" ItemsSource="{Binding MonthlyWeeklySummaries}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="4" Padding="12,8" Margin="0,0,0,4">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    
-                                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
-                                                        <TextBlock Text="Week" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,4,0"/>
-                                                        <TextBlock Text="{Binding WeekNumber}" Style="{StaticResource SecondaryTextStyle}" FontWeight="SemiBold" Margin="0,0,8,0"/>
-                                                        <TextBlock Text="(" Style="{StaticResource SecondaryTextStyle}"/>
-                                                        <TextBlock Text="{Binding WeekStart, StringFormat={}{0:MMM dd}}" Style="{StaticResource SecondaryTextStyle}"/>
-                                                        <TextBlock Text=" - " Style="{StaticResource SecondaryTextStyle}"/>
-                                                        <TextBlock Text="{Binding WeekEnd, StringFormat={}{0:MMM dd}}" Style="{StaticResource SecondaryTextStyle}"/>
-                                                        <TextBlock Text=")" Style="{StaticResource SecondaryTextStyle}"/>
-                                                    </StackPanel>
-                                                    
-                                                    <TextBlock Grid.Column="1" Text="{Binding TotalActiveText}" Style="{StaticResource SecondaryTextStyle}" FontWeight="Bold" Foreground="#10B981"/>
+                                                        <!-- Future dates: intentionally left empty (no chart, no text) -->
+
+                                                        <!-- Weekly summary -->
+                                                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                                    Visibility="{Binding IsWeeklySummary, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                            <TextBlock Text="{Binding TotalActiveText}"
+                                                                       FontWeight="Bold"
+                                                                       Foreground="#10B981"
+                                                                       Style="{StaticResource SecondaryTextStyle}"
+                                                                       HorizontalAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </Grid>
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>
@@ -608,7 +649,7 @@
                         </Border>
 
                         <!-- Hidden Application Usage DataGrid -->
-                        <Border Grid.Row="3" Style="{StaticResource CardStyle}" Visibility="Collapsed">
+                        <Border Grid.Row="2" Style="{StaticResource CardStyle}" Visibility="Collapsed">
                             <Grid>
                                 <TextBlock Text="No data for selected month"
                                            HorizontalAlignment="Center" VerticalAlignment="Center">
