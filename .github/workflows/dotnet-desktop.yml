@@ -19,7 +19,7 @@ jobs:
           dotnet-version: "8.0.x"
 
       - name: Restore
-        run: dotnet restore .\Monitor\Monitor.csproj
+        run: dotnet restore .\Operon\Operon.csproj
 
       - name: Build
-        run: dotnet build .\Monitor\Monitor.csproj -c Release --no-restore
+        run: dotnet build .\Operon\Operon.csproj -c Release --no-restore

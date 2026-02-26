@@ -1,4 +1,4 @@
-# System Activity Tracker (Windows)
+# Operon – System Activity Tracker (Windows)
 
 ## Simple Productivity & Activity Tracking for Windows
 
