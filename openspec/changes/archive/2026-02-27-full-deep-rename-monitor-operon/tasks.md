@@ -35,4 +35,4 @@
 
 - [x] 6.1 Build solution locally and run any existing tests (if available)
 - [x] 6.2 Confirm no remaining occurrences of `Monitor` in repo (case-sensitive search)
-- [ ] 6.3 Commit changes in logical groups and update git history as needed
+- [x] 6.3 Commit changes in logical groups and update git history as needed
