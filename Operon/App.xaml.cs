@@ -10,6 +10,7 @@ using SystemActivityTracker.Utilities;
 using SystemActivityTracker.ViewModels;
 using SystemActivityTracker.Views;
 using System.Windows.Threading;
+using System.Diagnostics;
 
 namespace SystemActivityTracker
 {
@@ -20,6 +21,7 @@ namespace SystemActivityTracker
     {
         public IServiceProvider Services { get; private set; } = null!;
 
+        private SingleInstanceManager? _singleInstanceManager;
         private SessionStateService? _sessionStateService;
         private TrackingService? _trackingService;
         private TrayIconService? _trayIconService;
@@ -37,6 +39,36 @@ namespace SystemActivityTracker
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+
+            // Step 1: Check for existing instance and start activation listener
+            _singleInstanceManager = new SingleInstanceManager();
+            if (!_singleInstanceManager.AcquireInstance())
+            {
+                // Another instance is already running; the first instance will be signalled.
+                // No need for manual window enumeration, just exit quietly.
+                this.Shutdown();
+                return;
+            }
+
+            // If we are the first instance, listen for activation signals from second instances.
+            _singleInstanceManager.InstanceActivated += (s, ev) =>
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    try
+                    {
+                        if (MainWindow != null)
+                        {
+                            var h = new System.Windows.Interop.WindowInteropHelper(MainWindow).Handle;
+                            WindowActivator.ActivateWindow(h);
+                        }
+                    }
+                    catch
+                    {
+                        // ignore errors during activation
+                    }
+                });
+            };
 
             var serviceCollection = new ServiceCollection();
 
@@ -225,6 +257,10 @@ namespace SystemActivityTracker
 
         protected override void OnExit(ExitEventArgs e)
         {
+            // Clean up single instance manager
+            _singleInstanceManager?.Dispose();
+            _singleInstanceManager = null;
+
             SystemEvents.SessionEnding -= OnSystemSessionEnding;
 
             if (_uiHeartbeatTimer != null)
