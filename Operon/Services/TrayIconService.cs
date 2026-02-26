@@ -37,7 +37,7 @@ namespace SystemActivityTracker.Services
 
             _notifyIcon = new NotifyIcon
             {
-                Text = GetString("AppName", "System Activity Tracker"),
+                Text = GetString("AppName", "Operon"),
                 Icon = GetAppIcon(),
                 Visible = true
             };

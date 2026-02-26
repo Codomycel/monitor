@@ -13,8 +13,13 @@
 
 - [x] 3.1 Replace namespace declarations (`namespace Monitor` -> `namespace Operon`) across code and XAML
 - [x] 3.2 Replace any literal strings or comments with the project name where appropriate (excluding unrelated words containing "monitor")
-- [ ] 3.3 Update `App.xaml` and other resource references if they embed the old name
-
+- [x] 3.3 Update `App.xaml` and other resource references if they embed the old name
+- [x] 3.4 Replace all user-facing text "System Activity Tracker" with "Operon"
+      - Update MainWindow title (Title property)
+      - Update header display text in UI
+      - Update system tray tooltip text
+      - Update any About/help screen references
+      - Verify no UI still displays "System Activity Tracker"
 ## 4. Update Manifests and Documentation
 
 - [x] 4.1 Edit `monitormsix/Package.appxmanifest` DisplayName and Description fields
