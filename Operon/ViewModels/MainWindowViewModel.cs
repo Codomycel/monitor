@@ -117,7 +117,8 @@ namespace SystemActivityTracker.ViewModels
         };
         private readonly ActivityChartViewModel _monthlyActivityChartViewModel = new ActivityChartViewModel 
         { 
-            ReferenceTime = TimeSpan.FromHours(8) // 8 hours for daily benchmark
+            ReferenceTime = TimeSpan.FromHours(8), // 8 hours for daily benchmark
+            ShowTotalActivityOnly = true // Show only Active bar in monthly view
         };
         private TimeSpan _weeklyManualDuration;
         private TimeSpan _weeklyTotalActiveDuration;
@@ -235,10 +236,8 @@ namespace SystemActivityTracker.ViewModels
             CrashLogRetentionDays = settings.CrashLogRetentionDays;
             CrashLogMaxSizeMB = settings.CrashLogMaxSizeMB;
 
-            if (settings.AutoStartTrackingOnLaunch)
-            {
-                StartTracking();
-            }
+            // Tracking starts in Stopped state - user must press Start button to begin tracking
+            // Removed: if (settings.AutoStartTrackingOnLaunch) { StartTracking(); }
 
             LoadWeeklySummary();
 

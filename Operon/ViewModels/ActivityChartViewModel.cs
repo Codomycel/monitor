@@ -63,8 +63,50 @@ namespace SystemActivityTracker.ViewModels
             get => _showTotalActivityOnly;
             set
             {
-                _showTotalActivityOnly = value;
-                OnPropertyChanged();
+                if (_showTotalActivityOnly != value)
+                {
+                    _showTotalActivityOnly = value;
+                    OnPropertyChanged();
+                    // Update separator visibility when mode changes
+                    ShowXAxisSeparator = !value;
+                    // Trigger chart update to rebuild series when visibility mode changes
+                    UpdateChart();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Controls whether to show the X-axis separator line (hide in total-activity-only mode)
+        /// </summary>
+        private bool _showXAxisSeparator = true;
+        public bool ShowXAxisSeparator
+        {
+            get => _showXAxisSeparator;
+            set
+            {
+                if (_showXAxisSeparator != value)
+                {
+                    _showXAxisSeparator = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Reduced/capped bar width to prevent bars from growing with available width.
+        /// Bars stay thin; extra width becomes gaps.
+        /// </summary>
+        private double _desiredBarWidth = 30.0; // Thin, capped bar width
+        public double DesiredBarWidth
+        {
+            get => _desiredBarWidth;
+            set
+            {
+                if (Math.Abs(_desiredBarWidth - value) > 0.001)
+                {
+                    _desiredBarWidth = Math.Max(4.0, value);
+                    OnPropertyChanged();
+                }
             }
         }
 
@@ -79,52 +121,83 @@ namespace SystemActivityTracker.ViewModels
         public double ColumnPadding { get; set; } = 3;
 
         /// <summary>
-        /// Updates bar sizing based on available chart dimensions
+        /// Computed gap between adjacent bars (result of equal-spacing algorithm)
+        /// </summary>
+        private double _barGapBetweenBars = 3;
+        public double BarGapBetweenBars
+        {
+            get => _barGapBetweenBars;
+            set
+            {
+                if (Math.Abs(_barGapBetweenBars - value) > 0.001)
+                {
+                    _barGapBetweenBars = value;
+                    ColumnPadding = _barGapBetweenBars;
+                    OnPropertyChanged();
+                    ApplyBarGap();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Updates bar sizing based on available chart dimensions using equal-spacing algorithm.
+        /// Formula: gap = (W - N*BW) / (N + 1)
+        /// where W = slot width, N = bar count per slot, BW = desired bar width (capped)
         /// </summary>
         /// <param name="availableWidth">Available width for the chart</param>
         /// <param name="availableHeight">Available height for the chart</param>
         public void UpdateBarSizing(double availableWidth, double availableHeight)
         {
-            // Calculate optimal bar size based on available space
-            var minDimension = Math.Min(availableWidth, availableHeight);
-            
-            if (minDimension < 100) // Very small charts (monthly calendar)
-            {
-                MaxColumnWidth = 14;
-                ColumnPadding = 3; // increase gap for readability
-            }
-            else if (minDimension < 200) // Small charts
-            {
-                MaxColumnWidth = 18;
-                ColumnPadding = 3;
-            }
-            else if (minDimension < 300) // Medium charts
-            {
-                MaxColumnWidth = 22;
-                ColumnPadding = 4;
-            }
-            else // Large charts (selected day, weekly views)
-            {
-                MaxColumnWidth = 28;
-                ColumnPadding = 5;
-            }
-
-            // Apply sizing to any existing series so UI updates immediately
+            // Determine category count (number of slots along X axis)
+            int categoryCount = Math.Max(1, XAxisLabels?.Length ?? 1);
             try
             {
                 foreach (var s in ChartSeries)
                 {
-                    if (s is ColumnSeries cs)
+                    if (s is ColumnSeries cs && cs.Values != null && cs.Values.Count > 0)
                     {
-                        cs.MaxColumnWidth = MaxColumnWidth;
-                        cs.ColumnPadding = ColumnPadding;
+                        categoryCount = cs.Values.Count;
+                        break;
                     }
                 }
             }
             catch
             {
-                // ignore if ChartSeries not yet initialized
+                // Use label count as fallback
             }
+
+            // Number of bars per slot (typically 3 for Active/Idle/Locked)
+            int barCountPerSlot = Math.Max(1, ChartSeries?.Count ?? 1);
+
+            // Compute slot width - total available width divided by number of categories
+            double slotWidth = availableWidth > 0 ? availableWidth / (double)Math.Max(1, categoryCount) : 10.0;
+
+            // Use the capped bar width (does NOT grow with available width)
+            double BW = DesiredBarWidth;
+
+            // Compute equal spacing: gap = (W - N*BW) / (N + 1)
+            // This distributes remaining width equally across (N+1) spaces:
+            // left outer + (N-1) between + right outer
+            double remainingWidth = Math.Max(0, slotWidth - (barCountPerSlot * BW));
+            double gap = remainingWidth / (double)(barCountPerSlot + 1);
+
+            // Clamp gap to reasonable bounds (minimum 0.5, maximum 10)
+            gap = Math.Max(0.5, Math.Min(10.0, gap));
+
+            // Clamp bar width for very tight spaces
+            double computedBW = BW;
+            if (slotWidth < BW * 2)
+            {
+                // Fallback: divide space equally if too tight
+                computedBW = Math.Max(4.0, slotWidth / (double)(barCountPerSlot + 1));
+            }
+
+            // Update sizing properties
+            MaxColumnWidth = computedBW;
+            BarGapBetweenBars = gap;
+
+            // Apply sizing to any existing series so UI updates immediately
+            ApplyBarGap();
         }
 
         /// <summary>
@@ -352,33 +425,68 @@ namespace SystemActivityTracker.ViewModels
                     MaxColumnWidth = MaxColumnWidth  // Use responsive max width
                 };
 
-                // Locked series (index 1)
-                var lockedSeries = new ColumnSeries
-                {
-                    Title = "Locked",
-                    Values = new ChartValues<double> { 0.1 }, // Start with small non-zero value
-                    DataLabels = ShowDataLabels,
-                    StrokeThickness = 0,
-                    Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(107, 114, 128)), // #6B7280 (Neutral Grey)
-                    ColumnPadding = ColumnPadding,  // Use responsive padding
-                    MaxColumnWidth = MaxColumnWidth   // Use responsive max width
-                };
-
-                // Idle series (index 2)
-                var idleSeries = new ColumnSeries
-                {
-                    Title = "Idle",
-                    Values = new ChartValues<double> { 0.1 }, // Start with small non-zero value
-                    DataLabels = ShowDataLabels,
-                    StrokeThickness = 0,
-                    Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(156, 163, 175)), // #9CA3AF (Light Grey)
-                    ColumnPadding = ColumnPadding,  // Use responsive padding
-                    MaxColumnWidth = MaxColumnWidth   // Use responsive max width
-                };
-
                 ChartSeries.Add(totalActiveSeries);
-                ChartSeries.Add(lockedSeries);
-                ChartSeries.Add(idleSeries);
+
+                // Only add Locked and Idle series if not in total-activity-only mode
+                if (!ShowTotalActivityOnly)
+                {
+                    // Locked series (index 1)
+                    var lockedSeries = new ColumnSeries
+                    {
+                        Title = "Locked",
+                        Values = new ChartValues<double> { 0.1 }, // Start with small non-zero value
+                        DataLabels = ShowDataLabels,
+                        StrokeThickness = 0,
+                        Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(107, 114, 128)), // #6B7280 (Neutral Grey)
+                        ColumnPadding = ColumnPadding,  // Use responsive padding
+                        MaxColumnWidth = MaxColumnWidth   // Use responsive max width
+                    };
+
+                    // Idle series (index 2)
+                    var idleSeries = new ColumnSeries
+                    {
+                        Title = "Idle",
+                        Values = new ChartValues<double> { 0.1 }, // Start with small non-zero value
+                        DataLabels = ShowDataLabels,
+                        StrokeThickness = 0,
+                        Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(156, 163, 175)), // #9CA3AF (Light Grey)
+                        ColumnPadding = ColumnPadding,  // Use responsive padding
+                        MaxColumnWidth = MaxColumnWidth   // Use responsive max width
+                    };
+
+                    ChartSeries.Add(lockedSeries);
+                    ChartSeries.Add(idleSeries);
+
+                    // Set X-axis labels for 3-series view
+                    XAxisLabels = new[] { "Total Active", "Locked", "Idle" };
+                    // Ensure bar gaps/widths are applied to newly-added series
+                    ApplyBarGap();
+                }
+                else
+                {
+                    // Set X-axis labels for 1-series (total-activity-only) view
+                    XAxisLabels = new[] { "Total Active" };
+                    ApplyBarGap();
+                }
+            }
+        }
+
+        private void ApplyBarGap()
+        {
+            try
+            {
+                foreach (var s in ChartSeries)
+                {
+                    if (s is ColumnSeries cs)
+                    {
+                        cs.ColumnPadding = ColumnPadding;
+                        cs.MaxColumnWidth = MaxColumnWidth;
+                    }
+                }
+            }
+            catch
+            {
+                // ignore if ChartSeries not yet initialized
             }
         }
 
@@ -386,7 +494,7 @@ namespace SystemActivityTracker.ViewModels
         {
             InitializeChartIfNeeded();
 
-            if (ChartSeries == null || ChartSeries.Count < 3) return;
+            if (ChartSeries == null || ChartSeries.Count == 0) return;
 
             // Use seconds as the base unit for all calculations
             var totalActiveSeconds = (TotalActiveTime + ManualTasksDuration).TotalSeconds;
@@ -397,15 +505,6 @@ namespace SystemActivityTracker.ViewModels
             if (totalActiveSeconds < 0.1) totalActiveSeconds = 0.1;
             if (lockedSeconds < 0.1) lockedSeconds = 0.1;
             if (idleSeconds < 0.1) idleSeconds = 0.1;
-
-            // When ShowTotalActivityOnly, zero out locked/idle so they don't render.
-            // Do NOT set ColumnSeries.Visibility — LiveCharts throws NRE in
-            // OnIsVisibleChanged when the series is not yet in a visual tree.
-            if (ShowTotalActivityOnly)
-            {
-                lockedSeconds = 0;
-                idleSeconds = 0;
-            }
 
             // Calculate Y-axis max with 10% padding, but ensure minimum scale
             var maxValue = Math.Max(totalActiveSeconds, Math.Max(lockedSeconds, idleSeconds));
@@ -426,22 +525,22 @@ namespace SystemActivityTracker.ViewModels
             ReferenceLabelText = $"{referenceHours:F0}h";
 
             // Update Total Active series (index 0)
-            if (ChartSeries[0] is ColumnSeries totalActiveSeries && totalActiveSeries.Values != null && totalActiveSeries.Values.Count > 0)
+            if (ChartSeries.Count > 0 && ChartSeries[0] is ColumnSeries totalActiveSeries && totalActiveSeries.Values != null && totalActiveSeries.Values.Count > 0)
             {
                 totalActiveSeries.Values[0] = totalActiveSeconds;
                 totalActiveSeries.Fill = GetTotalActiveColor(totalActiveSeconds / 60.0);
                 totalActiveSeries.LabelPoint = point => FormatSummaryLabel(totalActiveSeconds);
             }
 
-            // Update Locked series (index 1)
-            if (ChartSeries[1] is ColumnSeries lockedSeries && lockedSeries.Values != null && lockedSeries.Values.Count > 0)
+            // Update Locked series (index 1) - only if it exists (3-series mode)
+            if (ChartSeries.Count > 1 && ChartSeries[1] is ColumnSeries lockedSeries && lockedSeries.Values != null && lockedSeries.Values.Count > 0)
             {
                 lockedSeries.Values[0] = lockedSeconds;
                 lockedSeries.LabelPoint = point => FormatSummaryLabel(lockedSeconds);
             }
 
-            // Update Idle series (index 2)
-            if (ChartSeries[2] is ColumnSeries idleSeries && idleSeries.Values != null && idleSeries.Values.Count > 0)
+            // Update Idle series (index 2) - only if it exists (3-series mode)
+            if (ChartSeries.Count > 2 && ChartSeries[2] is ColumnSeries idleSeries && idleSeries.Values != null && idleSeries.Values.Count > 0)
             {
                 idleSeries.Values[0] = idleSeconds;
                 idleSeries.LabelPoint = point => FormatSummaryLabel(idleSeconds);

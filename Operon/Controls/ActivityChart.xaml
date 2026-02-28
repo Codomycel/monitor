@@ -7,7 +7,8 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              d:DesignHeight="250" d:DesignWidth="400"
-             Background="Transparent">
+             Background="Transparent"
+             SizeChanged="UserControl_SizeChanged">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
@@ -52,7 +53,7 @@
                          ShowLabels="True"
                          MinValue="0">
                     <lvc:Axis.Separator>
-                        <lvc:Separator IsEnabled="True" 
+                        <lvc:Separator IsEnabled="{Binding ShowXAxisSeparator}" 
                                        StrokeThickness="2" 
                                        Stroke="{Binding XAxisBrush}"
                                        StrokeDashArray=""/>
