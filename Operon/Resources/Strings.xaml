@@ -1,0 +1,21 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <sys:String x:Key="AppName" xmlns:sys="clr-namespace:System;assembly=mscorlib">Operon</sys:String>
+    <sys:String x:Key="AppTitle" xmlns:sys="clr-namespace:System;assembly=mscorlib">Operon</sys:String>
+
+    <sys:String x:Key="TrayMenuOpen" xmlns:sys="clr-namespace:System;assembly=mscorlib">Open</sys:String>
+    <sys:String x:Key="TrayMenuExit" xmlns:sys="clr-namespace:System;assembly=mscorlib">Exit</sys:String>
+
+    <sys:String x:Key="TrackingStatusRunning" xmlns:sys="clr-namespace:System;assembly=mscorlib">Tracking status: Running</sys:String>
+    <sys:String x:Key="TrackingStatusStopped" xmlns:sys="clr-namespace:System;assembly=mscorlib">Tracking status: Stopped</sys:String>
+    <sys:String x:Key="TrackingLabelRunning" xmlns:sys="clr-namespace:System;assembly=mscorlib">Running</sys:String>
+    <sys:String x:Key="TrackingLabelStopped" xmlns:sys="clr-namespace:System;assembly=mscorlib">Stopped</sys:String>
+    <sys:String x:Key="TrackingLabelUnknown" xmlns:sys="clr-namespace:System;assembly=mscorlib">Unknown</sys:String>
+
+    <sys:String x:Key="HeaderActivePrefix" xmlns:sys="clr-namespace:System;assembly=mscorlib">Active - </sys:String>
+    <sys:String x:Key="HeaderTotalActivePrefix" xmlns:sys="clr-namespace:System;assembly=mscorlib">Total active - </sys:String>
+
+    <sys:String x:Key="CrashNoData" xmlns:sys="clr-namespace:System;assembly=mscorlib">No crash data found.</sys:String>
+    <sys:String x:Key="Unknown" xmlns:sys="clr-namespace:System;assembly=mscorlib">Unknown</sys:String>
+</ResourceDictionary>

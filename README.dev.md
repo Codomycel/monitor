@@ -1,4 +1,4 @@
-# System Activity Tracker – Technical Documentation
+# Operon – System Activity Tracker – Technical Documentation
 
 ## 1. Tech Stack
 

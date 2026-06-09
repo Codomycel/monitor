@@ -1,6 +1,6 @@
 /.vs
-/Monitor/obj
-/Monitor/bin
+/Operon/obj
+/Operon/bin
 
 # Build outputs (all projects)
 **/bin/

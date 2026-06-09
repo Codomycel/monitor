@@ -1,0 +1,25 @@
+using System.Windows.Controls;
+using SystemActivityTracker.ViewModels;
+
+namespace SystemActivityTracker.Controls
+{
+    /// <summary>
+    /// Interaction logic for ActivityChart.xaml
+    /// </summary>
+    public partial class ActivityChart : System.Windows.Controls.UserControl
+    {
+        public ActivityChart()
+        {
+            InitializeComponent();
+        }
+
+        private void UserControl_SizeChanged(object sender, System.Windows.SizeChangedEventArgs e)
+        {
+            // When the control is resized, notify the viewmodel to recalculate bar sizing
+            if (DataContext is ActivityChartViewModel viewModel && e.NewSize.Width > 0 && e.NewSize.Height > 0)
+            {
+                viewModel.UpdateBarSizing(e.NewSize.Width, e.NewSize.Height);
+            }
+        }
+    }
+}
