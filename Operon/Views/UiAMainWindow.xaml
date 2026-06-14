@@ -45,8 +45,17 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Grid.Column="0" Text="{DynamicResource AppName}" Style="{StaticResource SubHeaderTextStyle}"
-                           FontWeight="SemiBold" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                    <Button Style="{StaticResource IconOnlyButtonStyle}"
+                            ToolTip="Exit"
+                            Click="ExitButton_Click"
+                            Margin="0,0,8,0">
+                        <TextBlock Text="&#xE7E8;" FontFamily="Segoe MDL2 Assets" FontSize="16"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Button>
+                    <TextBlock Text="{DynamicResource AppName}" Style="{StaticResource SubHeaderTextStyle}"
+                               FontWeight="SemiBold" VerticalAlignment="Center"/>
+                </StackPanel>
 
                 <TextBlock Grid.Column="1" Text="{Binding SelectedDate, StringFormat={}{0:dd-MMM-yyyy}}"
                            Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center"
@@ -54,9 +63,7 @@
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal"
                             HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0">
-                    <TextBlock Text="{Binding HeaderRunningTimerText}"
-                               FontFamily="Consolas" FontWeight="SemiBold"
-                               VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <controls:HeaderWatchTimer/>
 
                     <TextBlock Text="UI:" Style="{StaticResource SecondaryTextStyle}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                     <ComboBox x:Name="UiModeComboBoxHeader" MinWidth="120" Height="30" Margin="0,0,10,0"
@@ -187,11 +194,6 @@
                         </Ellipse>
                     </StackPanel>
                     </Border>
-
-                    <Button Content="Exit"
-                            Style="{StaticResource SecondaryButtonStyle}"
-                            Padding="10,4" Height="30" VerticalAlignment="Center"
-                            Click="ExitButton_Click"/>
                 </StackPanel>
             </Grid>
         </Border>

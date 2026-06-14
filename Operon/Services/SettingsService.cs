@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Text.Json;
 using SystemActivityTracker.Models;
 using SystemActivityTracker.Utilities;
@@ -13,7 +14,20 @@ namespace SystemActivityTracker.Services
             try
             {
                 string path = AppPaths.GetSettingsPath();
-                return JsonFile.LoadOrDefault(path, static () => new AppSettings());
+                if (!File.Exists(path))
+                {
+                    return new AppSettings();
+                }
+
+                string json = File.ReadAllText(path);
+                var settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+
+                if (!json.Contains("AutoStartTrackingOnLaunch", StringComparison.OrdinalIgnoreCase))
+                {
+                    settings.AutoStartTrackingOnLaunch = AppConstants.Defaults.AutoStartTrackingOnLaunch;
+                }
+
+                return settings;
             }
             catch (Exception ex)
             {
