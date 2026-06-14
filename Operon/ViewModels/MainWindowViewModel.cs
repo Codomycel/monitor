@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
@@ -24,13 +25,16 @@ namespace SystemActivityTracker.ViewModels
         public abstract bool HasData { get; }
         public abstract DateTime Date { get; set; }
         public abstract int WeekNumber { get; set; }
+        public virtual bool HasFullDayLeave => false;
+        public virtual bool HasMorningHalfLeave => false;
+        public virtual bool HasAfternoonHalfLeave => false;
     }
 
     // Monthly Calendar Data Model
     public class MonthlyDayItem : CalendarDayItemBase
     {
         private int _weekNumber;
-        
+
         public override DateTime Date { get; set; }
         public TimeSpan TotalActive { get; set; }
         public TimeSpan TotalIdle { get; set; }
@@ -42,8 +46,38 @@ namespace SystemActivityTracker.ViewModels
         public override int WeekNumber { get => _weekNumber; set => _weekNumber = value; }
         public override bool IsWeeklySummary => false;
         public ActivityChartViewModel? ChartViewModel { get; set; }
+        public HorizontalActivityBarViewModel? HorizontalBarViewModel { get; set; }
         public bool IsFuture { get; set; }
         public bool HasChart { get; set; }
+        public bool HasManualTasks { get; set; }
+        public LeaveDuration? LeaveDuration { get; set; }
+        public LeaveType? LeaveType { get; set; }
+        public bool HasLeave => LeaveDuration.HasValue;
+        public override bool HasFullDayLeave => LeaveDuration == Models.LeaveDuration.FullDay;
+        public override bool HasMorningHalfLeave => LeaveDuration == Models.LeaveDuration.MorningHalf;
+        public override bool HasAfternoonHalfLeave => LeaveDuration == Models.LeaveDuration.AfternoonHalf;
+    }
+
+    public class LeaveCalendarDayItem
+    {
+        public DateTime Date { get; set; }
+        public bool IsCurrentMonth { get; set; }
+        public bool HasLeave { get; set; }
+        public LeaveDuration? LeaveDuration { get; set; }
+        public LeaveType? LeaveType { get; set; }
+        public string LeaveSummaryText { get; set; } = string.Empty;
+    }
+
+    public sealed class LeaveChoiceItem<T>
+    {
+        public LeaveChoiceItem(T value, string label)
+        {
+            Value = value;
+            Label = label;
+        }
+
+        public T Value { get; }
+        public string Label { get; }
     }
 
     // Weekly Summary Data Model for Calendar Grid
@@ -73,12 +107,42 @@ namespace SystemActivityTracker.ViewModels
         public string TotalActiveText => $"{(int)TotalActiveHours.TotalHours}h {TotalActiveHours.Minutes}m";
     }
 
+    // Timeline View Mode Enum
+    public enum TimelineViewMode
+    {
+        Date,
+        Week,
+        Month
+    }
+
+    /// <summary>Tab order for UiAMainWindow TabControl (must match UiAMainWindow.xaml).</summary>
+    public enum MainWindowTab
+    {
+        MonthlyUsage = 0,
+        ApplicationUsage = 1,
+        ManualTasks = 2,
+        Leaves = 3,
+        WeeklyOverview = 4,
+        LastCrash = 5,
+        Settings = 6
+    }
+
+    // Timeline Date Group Model
+    public class TimelineDateGroup
+    {
+        public DateTime Date { get; set; }
+        public TimeSpan TotalDuration { get; set; }
+        public string TotalDurationText => $"{(int)TotalDuration.TotalHours}h {TotalDuration.Minutes}m";
+        public ObservableCollection<ManualTaskEntry> Tasks { get; set; } = new ObservableCollection<ManualTaskEntry>();
+    }
+
     public class MainWindowViewModel : INotifyPropertyChanged
     {
         private readonly TrackingService? _trackingService;
         private readonly SettingsService? _settingsService;
         private readonly IActivityLogReader _activityLogReader;
         private readonly ManualTaskService _manualTaskService;
+        private readonly LeaveService _leaveService;
         private string _trackingStatus = GetString("TrackingStatusStopped", "Tracking status: Stopped");
         private TimeSpan _totalActiveTimeToday;
         private TimeSpan _totalIdleTimeToday;
@@ -104,7 +168,31 @@ namespace SystemActivityTracker.ViewModels
         private int _selectedMonth = DateTime.Today.Month;
         private DateTime _manualTasksDate = DateTime.Today;
         private DateTime _weekStartDate;
+        
+        // Timeline-related fields
+        private TimelineViewMode _timelineViewMode = TimelineViewMode.Month;
+        private readonly ObservableCollection<TimelineDateGroup> _timelineItems = new ObservableCollection<TimelineDateGroup>();
+        private DateTime _timelineCurrentDate = DateTime.Today;
         private readonly ObservableCollection<DailySummary> _weeklySummaries = new ObservableCollection<DailySummary>();
+        
+        // Month/Year picker fields for Manual Tasks timeline
+        private string _timelineSelectedMonth = DateTime.Today.ToString("MMMM");
+        private int _timelineSelectedYear = DateTime.Today.Year;
+        private int _leaveSelectedYear = DateTime.Today.Year;
+        private int _leaveSelectedMonth = DateTime.Today.Month;
+        private DateTime _leaveFormDate = DateTime.Today;
+        private LeaveDuration _leaveFormDuration = LeaveDuration.FullDay;
+        private LeaveType _leaveFormType = LeaveType.SickLeave;
+        private bool _isLeaveEditMode;
+        private LeaveEntry? _selectedLeaveEntry;
+        private readonly ObservableCollection<LeaveCalendarDayItem> _leaveCalendarDays = new ObservableCollection<LeaveCalendarDayItem>();
+        private List<LeaveEntry> _leaveMonthEntries = new List<LeaveEntry>();
+        private readonly List<string> _months = new List<string> 
+        { 
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December" 
+        };
+        private readonly List<int> _years;
         private readonly ObservableCollection<MonthlyAppUsageDto> _monthlyAppUsage = new ObservableCollection<MonthlyAppUsageDto>();
         private readonly ObservableCollection<CalendarDayItemBase> _monthlyCalendarDays = new ObservableCollection<CalendarDayItemBase>();
         private readonly ObservableCollection<WeeklySummaryItem> _monthlyWeeklySummaries = new ObservableCollection<WeeklySummaryItem>();
@@ -147,16 +235,22 @@ namespace SystemActivityTracker.ViewModels
             SettingsService? settingsService = null,
             IActivityLogReader? activityLogReader = null,
             ManualTaskService? manualTaskService = null,
+            LeaveService? leaveService = null,
             LastCrashViewModel? lastCrashViewModel = null)
         {
             _trackingService = trackingService;
             _settingsService = settingsService;
             _activityLogReader = activityLogReader ?? new ActivityLogReader();
             _manualTaskService = manualTaskService ?? new ManualTaskService();
+            _leaveService = leaveService ?? new LeaveService();
 
             LastCrash = lastCrashViewModel ?? new LastCrashViewModel();
             TodayText = DateTime.Now.ToString("dddd, dd MMMM yyyy");
             _weekStartDate = StartOfWeek(DateTime.Today, DayOfWeek.Monday);
+
+            // Initialize years list for Manual Tasks timeline (current year ± 5)
+            var currentYear = DateTime.Today.Year;
+            _years = Enumerable.Range(currentYear - 5, 11).ToList();
 
             _runningTimer.Interval = TimeSpan.FromMilliseconds(100);
             _runningTimer.Tick += (_, __) =>
@@ -174,6 +268,19 @@ namespace SystemActivityTracker.ViewModels
             BeginEditManualTaskCommand = new RelayCommand(p => BeginEditManualTask(p as ManualTaskEntry), p => CanEditManualTasks() && !_isManualEditMode);
             CancelManualTaskEditCommand = new RelayCommand(_ => CancelManualTaskEdit(), _ => CanEditManualTasks() && _isManualEditMode);
             DeleteManualTaskRowCommand = new RelayCommand(p => DeleteManualTaskRow(p as ManualTaskEntry), p => CanEditManualTasks() && !_isManualEditMode);
+
+            // Timeline commands
+            RefreshTimelineCommand = new RelayCommand(_ => RefreshTimeline());
+            NavigatePreviousCommand = new RelayCommand(_ => NavigatePrevious());
+            NavigateNextCommand = new RelayCommand(_ => NavigateNext());
+            NavigateToManualTasksFromCalendarCommand = new RelayCommand(p => NavigateToManualTasksFromCalendar(p as CalendarDayItemBase));
+
+            SaveLeaveCommand = new RelayCommand(_ => SaveLeaveAction(), _ => CanEditLeave());
+            DeleteLeaveCommand = new RelayCommand(_ => DeleteLeaveAction(), _ => CanEditLeave() && _selectedLeaveEntry != null);
+            CancelLeaveEditCommand = new RelayCommand(_ => CancelLeaveEdit(), _ => _isLeaveEditMode);
+            SelectLeaveCalendarDayCommand = new RelayCommand(p => SelectLeaveCalendarDay(p as LeaveCalendarDayItem));
+            NavigateLeavePreviousMonthCommand = new RelayCommand(_ => NavigateLeaveMonth(-1));
+            NavigateLeaveNextMonthCommand = new RelayCommand(_ => NavigateLeaveMonth(1));
 
             SaveSettingsCommand = new RelayCommand(_ => SaveSettings());
             ClearCrashLogsCommand = new RelayCommand(_ => ClearCrashLogs());
@@ -247,7 +354,15 @@ namespace SystemActivityTracker.ViewModels
 
             SyncHeaderActiveBaseFromSummary();
 
+            _manualTasks.CollectionChanged += OnManualTasksCollectionChanged;
+            _timelineItems.CollectionChanged += OnTimelineItemsCollectionChanged;
+
             LoadManualTasksForSelectedDate();
+
+            // Initialize timeline with default Month view
+            RefreshTimeline();
+
+            LoadLeavesForSelectedMonth();
 
             // Initialize activity chart with current data
             UpdateActivityChart();
@@ -506,7 +621,7 @@ namespace SystemActivityTracker.ViewModels
             int hours = (int)total.TotalHours;
             int minutes = total.Minutes;
             int seconds = total.Seconds;
-            HeaderRunningTimerText = GetString("HeaderActivePrefix", "Active - ") + string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00}", hours, minutes, seconds);
+            HeaderRunningTimerText = GetString("HeaderActivePrefix", "Active : ") + string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00}", hours, minutes, seconds);
         }
 
         private void SyncHeaderActiveBaseFromSummary()
@@ -816,6 +931,276 @@ namespace SystemActivityTracker.ViewModels
         public ICommand BeginEditManualTaskCommand { get; }
         public ICommand CancelManualTaskEditCommand { get; }
         public ICommand DeleteManualTaskRowCommand { get; }
+        public ICommand NavigateToManualTasksFromCalendarCommand { get; }
+
+        public ObservableCollection<LeaveCalendarDayItem> LeaveCalendarDays => _leaveCalendarDays;
+
+        public DateTime LeaveSelectedMonthYear
+        {
+            get => new DateTime(_leaveSelectedYear, _leaveSelectedMonth, 1);
+            set
+            {
+                var year = value.Year;
+                var month = value.Month;
+                if (_leaveSelectedYear != year || _leaveSelectedMonth != month)
+                {
+                    _leaveSelectedYear = year;
+                    _leaveSelectedMonth = month;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(LeaveMonthLabel));
+                    LoadLeavesForSelectedMonth();
+                }
+            }
+        }
+
+        public string LeaveMonthLabel => LeaveSelectedMonthYear.ToString("MMMM yyyy");
+
+        public DateTime LeaveFormDate
+        {
+            get => _leaveFormDate;
+            set
+            {
+                var normalized = (value == default ? DateTime.Today : value).Date;
+                if (_leaveFormDate != normalized)
+                {
+                    _leaveFormDate = normalized;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public LeaveDuration LeaveFormDuration
+        {
+            get => _leaveFormDuration;
+            set
+            {
+                if (_leaveFormDuration != value)
+                {
+                    _leaveFormDuration = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public LeaveType LeaveFormType
+        {
+            get => _leaveFormType;
+            set
+            {
+                if (_leaveFormType != value)
+                {
+                    _leaveFormType = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool IsLeaveEditMode
+        {
+            get => _isLeaveEditMode;
+            private set
+            {
+                if (_isLeaveEditMode != value)
+                {
+                    _isLeaveEditMode = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(LeaveFormPrimaryGlyph));
+                    OnPropertyChanged(nameof(LeaveFormPrimaryTooltip));
+                    UpdateLeaveCommandsCanExecute();
+                }
+            }
+        }
+
+        public string LeaveFormPrimaryGlyph => IsLeaveEditMode ? "\uE74E" : "\uE710";
+        public string LeaveFormPrimaryTooltip => IsLeaveEditMode ? "Save" : "Add";
+
+        public Array LeaveDurationOptions => Enum.GetValues(typeof(LeaveDuration));
+        public Array LeaveTypeOptions => Enum.GetValues(typeof(LeaveType));
+
+        public IReadOnlyList<LeaveChoiceItem<LeaveDuration>> LeaveDurationChoices { get; } = new[]
+        {
+            new LeaveChoiceItem<LeaveDuration>(LeaveDuration.FullDay, "Full day"),
+            new LeaveChoiceItem<LeaveDuration>(LeaveDuration.MorningHalf, "Morning half day"),
+            new LeaveChoiceItem<LeaveDuration>(LeaveDuration.AfternoonHalf, "Afternoon half day")
+        };
+
+        public IReadOnlyList<LeaveChoiceItem<LeaveType>> LeaveTypeChoices { get; } = new[]
+        {
+            new LeaveChoiceItem<LeaveType>(LeaveType.SickLeave, "Sick Leave"),
+            new LeaveChoiceItem<LeaveType>(LeaveType.CasualLeave, "Casual Leave"),
+            new LeaveChoiceItem<LeaveType>(LeaveType.EarnedLeave, "Earned Leave"),
+            new LeaveChoiceItem<LeaveType>(LeaveType.CompOff, "Comp Off")
+        };
+
+        public ICommand SaveLeaveCommand { get; }
+        public ICommand DeleteLeaveCommand { get; }
+        public ICommand CancelLeaveEditCommand { get; }
+        public ICommand SelectLeaveCalendarDayCommand { get; }
+        public ICommand NavigateLeavePreviousMonthCommand { get; }
+        public ICommand NavigateLeaveNextMonthCommand { get; }
+
+        // Timeline public properties
+        public TimelineViewMode TimelineViewMode
+        {
+            get => _timelineViewMode;
+            set
+            {
+                if (_timelineViewMode != value)
+                {
+                    _timelineViewMode = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(PeriodLabelFormatted));
+                    OnPropertyChanged(nameof(ShowDateViewEmptyState));
+                    OnPropertyChanged(nameof(ShowTimelineViewEmptyState));
+
+                    if (_manualTasksDate != _timelineCurrentDate.Date)
+                    {
+                        SetManualTasksDateInternal(_timelineCurrentDate.Date, syncTimeline: false);
+                    }
+
+                    RefreshTimeline();
+                }
+            }
+        }
+
+        public ObservableCollection<TimelineDateGroup> TimelineItems => _timelineItems;
+
+        public DateTime TimelineCurrentDate
+        {
+            get => _timelineCurrentDate;
+            set => SetTimelineCurrentDateInternal(
+                (value == default ? DateTime.Today : value).Date,
+                syncManualTasksDate: true);
+        }
+
+        public bool ShowDateViewEmptyState =>
+            TimelineViewMode == TimelineViewMode.Date && _manualTasks.Count == 0;
+
+        public bool ShowTimelineViewEmptyState =>
+            (TimelineViewMode == TimelineViewMode.Week || TimelineViewMode == TimelineViewMode.Month)
+            && _timelineItems.Count == 0;
+
+        public string PeriodLabelFormatted
+        {
+            get
+            {
+                return TimelineViewMode switch
+                {
+                    TimelineViewMode.Date => TimelineCurrentDate.ToString("MMMM d, yyyy"),
+                    TimelineViewMode.Week => GetWeekLabel(TimelineCurrentDate),
+                    TimelineViewMode.Month => TimelineCurrentDate.ToString("MMMM yyyy"),
+                    _ => TimelineCurrentDate.ToString("MMMM d, yyyy")
+                };
+            }
+        }
+
+        // Month/Year picker properties for Manual Tasks timeline
+        public List<string> Months => _months;
+        public List<int> Years => _years;
+
+        public string SelectedMonth
+        {
+            get => _timelineSelectedMonth;
+            set
+            {
+                if (_timelineSelectedMonth != value)
+                {
+                    _timelineSelectedMonth = value;
+                    OnPropertyChanged();
+                    UpdateTimelineDateFromMonthYear();
+                }
+            }
+        }
+
+        public int SelectedYear
+        {
+            get => _timelineSelectedYear;
+            set
+            {
+                if (_timelineSelectedYear != value)
+                {
+                    _timelineSelectedYear = value;
+                    OnPropertyChanged();
+                    UpdateTimelineDateFromMonthYear();
+                }
+            }
+        }
+
+        private void UpdateTimelineDateFromMonthYear()
+        {
+            var monthIndex = _months.IndexOf(_timelineSelectedMonth) + 1;
+            if (monthIndex > 0 && monthIndex <= 12)
+            {
+                SetTimelineCurrentDateInternal(
+                    new DateTime(_timelineSelectedYear, monthIndex, 1),
+                    syncManualTasksDate: true);
+            }
+        }
+
+        private void SetTimelineCurrentDateInternal(DateTime normalized, bool syncManualTasksDate)
+        {
+            if (_timelineCurrentDate == normalized)
+            {
+                return;
+            }
+
+            _timelineCurrentDate = normalized;
+            OnPropertyChanged(nameof(TimelineCurrentDate));
+            OnPropertyChanged(nameof(PeriodLabelFormatted));
+
+            if (_timelineViewMode == TimelineViewMode.Month)
+            {
+                SyncMonthYearPickersFromTimelineDate(normalized);
+            }
+
+            if (syncManualTasksDate
+                && (_timelineViewMode == TimelineViewMode.Date
+                    || _timelineViewMode == TimelineViewMode.Week
+                    || _timelineViewMode == TimelineViewMode.Month))
+            {
+                SetManualTasksDateInternal(normalized, syncTimeline: false);
+            }
+
+            RefreshTimeline();
+        }
+
+        private void SyncMonthYearPickersFromTimelineDate(DateTime date)
+        {
+            var monthName = _months[date.Month - 1];
+            if (_timelineSelectedMonth != monthName)
+            {
+                _timelineSelectedMonth = monthName;
+                OnPropertyChanged(nameof(SelectedMonth));
+            }
+
+            if (_timelineSelectedYear != date.Year)
+            {
+                _timelineSelectedYear = date.Year;
+                OnPropertyChanged(nameof(SelectedYear));
+            }
+        }
+
+        private void OnManualTasksCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            OnPropertyChanged(nameof(ShowDateViewEmptyState));
+        }
+
+        private void OnTimelineItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            OnPropertyChanged(nameof(ShowTimelineViewEmptyState));
+        }
+
+        private string GetWeekLabel(DateTime date)
+        {
+            var startOfWeek = StartOfWeek(date, DayOfWeek.Monday);
+            var endOfWeek = startOfWeek.AddDays(6);
+            return $"{startOfWeek:MMM d} - {endOfWeek:MMM d, yyyy}";
+        }
+
+        // Timeline commands
+        public ICommand RefreshTimelineCommand { get; }
+        public ICommand NavigatePreviousCommand { get; }
+        public ICommand NavigateNextCommand { get; }
 
         private void RefreshForSelectedDate()
         {
@@ -883,6 +1268,9 @@ namespace SystemActivityTracker.ViewModels
             _monthlyAppUsage.Clear();
             _monthlyCalendarDays.Clear();
             _monthlyWeeklySummaries.Clear();
+
+            var monthLeaves = _leaveService.LoadMonth(_selectedYear, _selectedMonth);
+            var leaveByDate = monthLeaves.ToDictionary(l => l.Date.Date);
 
             var start = new DateTime(_selectedYear, _selectedMonth, 1);
             var end = start.AddMonths(1).AddDays(-1);
@@ -959,6 +1347,7 @@ namespace SystemActivityTracker.ViewModels
                 dayItem.IsFuture = date.Date > DateTime.Today;
                 if (!dayItem.IsFuture)
                 {
+                    // Create vertical chart (existing)
                     var chartViewModel = new ActivityChartViewModel();
                     chartViewModel.ReferenceTime = TimeSpan.FromHours(8);
                     chartViewModel.ShowReferenceLabel = false;
@@ -968,6 +1357,12 @@ namespace SystemActivityTracker.ViewModels
                     chartViewModel.UpdateBarSizing(90, 80); // Slightly larger for monthly calendar to increase bar width
                     chartViewModel.XAxisLabels = new string[] { "", "", "" }; // Hide axis labels for compact monthly view
                     dayItem.ChartViewModel = chartViewModel;
+
+                    // Create horizontal bar (new compact view)
+                    var horizontalBarViewModel = new HorizontalActivityBarViewModel();
+                    horizontalBarViewModel.ReferenceTime = TimeSpan.FromHours(8);
+                    dayItem.HorizontalBarViewModel = horizontalBarViewModel;
+
                     dayItem.HasChart = true;
                 }
                 else
@@ -1009,11 +1404,24 @@ namespace SystemActivityTracker.ViewModels
                     dayItem.TotalIdle = idleTime;
                     dayItem.TotalLocked = lockedTime;
                     dayItem.ManualTime = manualTime;
+                    
+                    // Check if date has manual tasks for highlighting
+                    dayItem.HasManualTasks = HasManualTasksForDate(date.Date);
 
-                    // Set chart data (only if a chart view model exists - future dates may not have one)
+                    if (leaveByDate.TryGetValue(date.Date, out var leaveEntry))
+                    {
+                        dayItem.LeaveDuration = leaveEntry.Duration;
+                        dayItem.LeaveType = leaveEntry.Type;
+                    }
+
+                    // Set chart data (only if view models exist - future dates may not have them)
                     if (dayItem.ChartViewModel != null)
                     {
                         dayItem.ChartViewModel.SetData(activeTime, manualTime, idleTime, lockedTime);
+                    }
+                    if (dayItem.HorizontalBarViewModel != null)
+                    {
+                        dayItem.HorizontalBarViewModel.SetData(activeTime, manualTime, idleTime, lockedTime);
                     }
                 }
 
@@ -1170,15 +1578,23 @@ namespace SystemActivityTracker.ViewModels
         public DateTime ManualTasksDate
         {
             get => _manualTasksDate;
-            set
+            set => SetManualTasksDateInternal(
+                (value == default ? DateTime.Today : value).Date,
+                syncTimeline: true);
+        }
+
+        private void SetManualTasksDateInternal(DateTime normalized, bool syncTimeline)
+        {
+            if (_manualTasksDate != normalized)
             {
-                var normalized = (value == default ? DateTime.Today : value).Date;
-                if (_manualTasksDate != normalized)
-                {
-                    _manualTasksDate = normalized;
-                    OnPropertyChanged();
-                    LoadManualTasksForSelectedDate();
-                }
+                _manualTasksDate = normalized;
+                OnPropertyChanged(nameof(ManualTasksDate));
+                LoadManualTasksForSelectedDate();
+            }
+
+            if (syncTimeline && _timelineViewMode == TimelineViewMode.Date && _timelineCurrentDate != normalized)
+            {
+                SetTimelineCurrentDateInternal(normalized, syncManualTasksDate: false);
             }
         }
 
@@ -1590,7 +2006,165 @@ namespace SystemActivityTracker.ViewModels
                 OnPropertyChanged(nameof(MonthlyManualTasksText));
                 OnPropertyChanged(nameof(MonthlyTotalActiveText));
             }
+
+            // Refresh timeline if visible
+            RefreshTimeline();
         }
+
+        #region Timeline Methods
+
+        private void RefreshTimeline()
+        {
+            switch (TimelineViewMode)
+            {
+                case TimelineViewMode.Date:
+                    LoadTimelineForDate();
+                    break;
+                case TimelineViewMode.Week:
+                    LoadTimelineForWeek();
+                    break;
+                case TimelineViewMode.Month:
+                    LoadTimelineForMonth();
+                    break;
+            }
+        }
+
+        private void NavigatePrevious()
+        {
+            TimelineCurrentDate = TimelineViewMode switch
+            {
+                TimelineViewMode.Date => TimelineCurrentDate.AddDays(-1),
+                TimelineViewMode.Week => TimelineCurrentDate.AddDays(-7),
+                TimelineViewMode.Month => TimelineCurrentDate.AddMonths(-1),
+                _ => TimelineCurrentDate
+            };
+        }
+
+        private void NavigateNext()
+        {
+            TimelineCurrentDate = TimelineViewMode switch
+            {
+                TimelineViewMode.Date => TimelineCurrentDate.AddDays(1),
+                TimelineViewMode.Week => TimelineCurrentDate.AddDays(7),
+                TimelineViewMode.Month => TimelineCurrentDate.AddMonths(1),
+                _ => TimelineCurrentDate
+            };
+        }
+
+        private void NavigateToManualTasksFromCalendar(CalendarDayItemBase? dayItem)
+        {
+            if (dayItem == null || dayItem.IsWeeklySummary)
+            {
+                return;
+            }
+
+            if (!HasManualTasksForDate(dayItem.Date))
+            {
+                return;
+            }
+
+            NavigateToManualTasksForDate(dayItem.Date);
+        }
+
+        public void NavigateToManualTasksForDate(DateTime date)
+        {
+            var normalized = date.Date;
+            ResetManualEditState();
+
+            SelectedTabIndex = (int)MainWindowTab.ManualTasks;
+            _timelineViewMode = TimelineViewMode.Date;
+            OnPropertyChanged(nameof(TimelineViewMode));
+            OnPropertyChanged(nameof(PeriodLabelFormatted));
+            OnPropertyChanged(nameof(ShowDateViewEmptyState));
+            OnPropertyChanged(nameof(ShowTimelineViewEmptyState));
+
+            SetManualTasksDateInternal(normalized, syncTimeline: false);
+            SetTimelineCurrentDateInternal(normalized, syncManualTasksDate: false);
+            RefreshTimeline();
+        }
+
+        public bool HasManualTasksForDate(DateTime date)
+        {
+            var tasks = _manualTaskService.Load(date.Date);
+            return tasks.Any();
+        }
+
+        private void LoadTimelineForDate()
+        {
+            _timelineItems.Clear();
+            var date = TimelineCurrentDate.Date;
+            var tasks = _manualTaskService.Load(date);
+            
+            if (tasks.Any())
+            {
+                var group = new TimelineDateGroup
+                {
+                    Date = date,
+                    TotalDuration = TimeSpan.FromSeconds(tasks.Sum(t => Math.Max(0, t.TotalSeconds)))
+                };
+                foreach (var task in tasks)
+                {
+                    group.Tasks.Add(task);
+                }
+                _timelineItems.Add(group);
+            }
+        }
+
+        private void LoadTimelineForWeek()
+        {
+            _timelineItems.Clear();
+            var startOfWeek = StartOfWeek(TimelineCurrentDate, DayOfWeek.Monday);
+            
+            for (int i = 0; i < 7; i++)
+            {
+                var date = startOfWeek.AddDays(i);
+                var tasks = _manualTaskService.Load(date);
+                
+                if (tasks.Any())
+                {
+                    var group = new TimelineDateGroup
+                    {
+                        Date = date,
+                        TotalDuration = TimeSpan.FromSeconds(tasks.Sum(t => Math.Max(0, t.TotalSeconds)))
+                    };
+                    foreach (var task in tasks)
+                    {
+                        group.Tasks.Add(task);
+                    }
+                    _timelineItems.Add(group);
+                }
+            }
+        }
+
+        private void LoadTimelineForMonth()
+        {
+            _timelineItems.Clear();
+            var year = TimelineCurrentDate.Year;
+            var month = TimelineCurrentDate.Month;
+            var daysInMonth = DateTime.DaysInMonth(year, month);
+            
+            for (int day = 1; day <= daysInMonth; day++)
+            {
+                var date = new DateTime(year, month, day);
+                var tasks = _manualTaskService.Load(date);
+                
+                if (tasks.Any())
+                {
+                    var group = new TimelineDateGroup
+                    {
+                        Date = date,
+                        TotalDuration = TimeSpan.FromSeconds(tasks.Sum(t => Math.Max(0, t.TotalSeconds)))
+                    };
+                    foreach (var task in tasks)
+                    {
+                        group.Tasks.Add(task);
+                    }
+                    _timelineItems.Add(group);
+                }
+            }
+        }
+
+        #endregion
 
         private static int ParseNonNegativeInt(string value)
         {
@@ -1666,8 +2240,36 @@ namespace SystemActivityTracker.ViewModels
                 return;
             }
 
-            SelectedManualTask = entry;
-            IsManualEditMode = true;
+            // For Week/Month view: switch to the task's actual date and load its collection
+            // Find the date by checking if entry is in timeline or using ManualTasksDate for Date view
+            DateTime taskDate = ManualTasksDate;
+            bool foundInTimeline = false;
+            
+            // Search in timeline items to find the task's actual date
+            foreach (var group in _timelineItems)
+            {
+                if (group.Tasks.Any(t => t.Id == entry.Id))
+                {
+                    taskDate = group.Date;
+                    foundInTimeline = true;
+                    break;
+                }
+            }
+
+            // If task is from a different date than currently loaded, switch to that date
+            if (foundInTimeline && taskDate != ManualTasksDate.Date)
+            {
+                ManualTasksDate = taskDate;
+                LoadManualTasksForSelectedDate();
+            }
+
+            // Find the matching task instance in _manualTasks by Id
+            var matchingTask = _manualTasks.FirstOrDefault(t => t.Id == entry.Id);
+            if (matchingTask != null)
+            {
+                SelectedManualTask = matchingTask;
+                IsManualEditMode = true;
+            }
         }
 
         private void CancelManualTaskEdit()
@@ -1706,14 +2308,88 @@ namespace SystemActivityTracker.ViewModels
 
         private void DeleteManualTaskRow(ManualTaskEntry? entry)
         {
-            if (!CanEditManualTasks() || _isManualEditMode || entry == null)
+            if (!CanEditManualTasks() || entry == null)
             {
                 return;
             }
 
-            _manualTasks.Remove(entry);
-            PersistManualTasks();
+            if (_isManualEditMode)
+            {
+                CancelManualTaskEdit();
+            }
+
+            bool wasSelected = SelectedManualTask != null && SelectedManualTask.Id == entry.Id;
+
+            var taskDate = ResolveManualTaskDate(entry);
+            if (!RemoveManualTaskById(taskDate, entry.Id))
+            {
+                return;
+            }
+
+            if (wasSelected)
+            {
+                CancelManualTaskEdit();
+            }
+
+            RefreshTimeline();
             UpdateManualTaskCommandsCanExecute();
+        }
+
+        private DateTime ResolveManualTaskDate(ManualTaskEntry entry)
+        {
+            foreach (var group in _timelineItems)
+            {
+                if (group.Tasks.Any(t => t.Id == entry.Id))
+                {
+                    return group.Date;
+                }
+            }
+
+            if (_manualTasks.Any(t => t.Id == entry.Id))
+            {
+                return ManualTasksDate.Date;
+            }
+
+            return ManualTasksDate.Date;
+        }
+
+        private bool RemoveManualTaskById(DateTime taskDate, Guid entryId)
+        {
+            var tasksForDate = _manualTaskService.Load(taskDate);
+            var matchingTask = tasksForDate.FirstOrDefault(t => t.Id == entryId);
+            if (matchingTask == null)
+            {
+                return false;
+            }
+
+            tasksForDate.Remove(matchingTask);
+            _manualTaskService.Save(taskDate, tasksForDate);
+
+            if (ManualTasksDate.Date == taskDate)
+            {
+                var localMatch = _manualTasks.FirstOrDefault(t => t.Id == entryId);
+                if (localMatch != null)
+                {
+                    _manualTasks.Remove(localMatch);
+                }
+
+                _selectedDayManualDuration = TimeSpan.FromSeconds(_manualTasks.Sum(t => Math.Max(0, t.TotalSeconds)));
+                NotifyManualTotalsChanged();
+
+                if (IsSelectedDateInCurrentWeek())
+                {
+                    LoadWeeklySummary();
+                }
+
+                if (IsSelectedDateInSelectedMonth())
+                {
+                    OnPropertyChanged(nameof(MonthlyActiveTrackedText));
+                    OnPropertyChanged(nameof(MonthlyManualTasksText));
+                    OnPropertyChanged(nameof(MonthlyTotalActiveText));
+                }
+            }
+
+            return true;
         }
 
         private void UpdateManualTaskCommandsCanExecute()
@@ -1923,6 +2599,192 @@ namespace SystemActivityTracker.ViewModels
 
             _autoRefreshTimer.Start();
         }
+
+        #region Leave Management
+
+        private static string FormatLeaveDuration(LeaveDuration duration) => duration switch
+        {
+            LeaveDuration.FullDay => "Full day",
+            LeaveDuration.MorningHalf => "Morning half",
+            LeaveDuration.AfternoonHalf => "Afternoon half",
+            _ => duration.ToString()
+        };
+
+        private static string FormatLeaveType(LeaveType type) => type switch
+        {
+            LeaveType.SickLeave => "Sick Leave",
+            LeaveType.CasualLeave => "Casual Leave",
+            LeaveType.EarnedLeave => "Earned Leave",
+            LeaveType.CompOff => "Comp Off",
+            _ => type.ToString()
+        };
+
+        private bool CanEditLeave() => true;
+
+        private void LoadLeavesForSelectedMonth()
+        {
+            _leaveCalendarDays.Clear();
+            _leaveMonthEntries = _leaveService.LoadMonth(_leaveSelectedYear, _leaveSelectedMonth);
+            var leaveByDate = _leaveMonthEntries.ToDictionary(e => e.Date.Date);
+
+            var start = new DateTime(_leaveSelectedYear, _leaveSelectedMonth, 1);
+            var end = start.AddMonths(1).AddDays(-1);
+            var calendarStart = start.AddDays(-(int)start.DayOfWeek);
+            var calendarEnd = end.AddDays(6 - (int)end.DayOfWeek);
+
+            for (var date = calendarStart; date <= calendarEnd; date = date.AddDays(1))
+            {
+                leaveByDate.TryGetValue(date.Date, out var entry);
+                _leaveCalendarDays.Add(new LeaveCalendarDayItem
+                {
+                    Date = date,
+                    IsCurrentMonth = date.Month == _leaveSelectedMonth && date.Year == _leaveSelectedYear,
+                    HasLeave = entry != null,
+                    LeaveDuration = entry?.Duration,
+                    LeaveType = entry?.Type,
+                    LeaveSummaryText = entry == null
+                        ? string.Empty
+                        : $"{FormatLeaveDuration(entry.Duration)} · {FormatLeaveType(entry.Type)}"
+                });
+            }
+        }
+
+        private void NavigateLeaveMonth(int deltaMonths)
+        {
+            var next = LeaveSelectedMonthYear.AddMonths(deltaMonths);
+            LeaveSelectedMonthYear = next;
+        }
+
+        private void SelectLeaveCalendarDay(LeaveCalendarDayItem? day)
+        {
+            if (day == null || !day.IsCurrentMonth)
+            {
+                return;
+            }
+
+            LeaveFormDate = day.Date;
+            if (day.HasLeave)
+            {
+                var entry = _leaveMonthEntries.FirstOrDefault(e => e.Date.Date == day.Date.Date);
+                if (entry != null)
+                {
+                    SelectedLeaveEntry = entry;
+                    LeaveFormDuration = entry.Duration;
+                    LeaveFormType = entry.Type;
+                    IsLeaveEditMode = true;
+                }
+            }
+            else
+            {
+                CancelLeaveEdit();
+                LeaveFormDate = day.Date;
+            }
+        }
+
+        private LeaveEntry? SelectedLeaveEntry
+        {
+            get => _selectedLeaveEntry;
+            set
+            {
+                if (!ReferenceEquals(_selectedLeaveEntry, value))
+                {
+                    _selectedLeaveEntry = value;
+                    OnPropertyChanged();
+                    UpdateLeaveCommandsCanExecute();
+                }
+            }
+        }
+
+        private void SaveLeaveAction()
+        {
+            if (!CanEditLeave())
+            {
+                return;
+            }
+
+            var date = LeaveFormDate.Date;
+            if (IsLeaveEditMode && SelectedLeaveEntry != null)
+            {
+                var existing = _leaveMonthEntries.FirstOrDefault(e => e.Id == SelectedLeaveEntry.Id);
+                if (existing != null)
+                {
+                    existing.Date = date;
+                    existing.Duration = LeaveFormDuration;
+                    existing.Type = LeaveFormType;
+                }
+            }
+            else
+            {
+                if (_leaveMonthEntries.Any(e => e.Date.Date == date))
+                {
+                    return;
+                }
+
+                _leaveMonthEntries.Add(new LeaveEntry
+                {
+                    Date = date,
+                    Duration = LeaveFormDuration,
+                    Type = LeaveFormType
+                });
+            }
+
+            PersistLeaveMonth();
+            CancelLeaveEdit();
+        }
+
+        private void DeleteLeaveAction()
+        {
+            if (!CanEditLeave() || SelectedLeaveEntry == null)
+            {
+                return;
+            }
+
+            var entry = _leaveMonthEntries.FirstOrDefault(e => e.Id == SelectedLeaveEntry.Id);
+            if (entry != null)
+            {
+                _leaveMonthEntries.Remove(entry);
+                PersistLeaveMonth();
+            }
+
+            CancelLeaveEdit();
+        }
+
+        private void CancelLeaveEdit()
+        {
+            IsLeaveEditMode = false;
+            SelectedLeaveEntry = null;
+            LeaveFormDuration = LeaveDuration.FullDay;
+            LeaveFormType = LeaveType.SickLeave;
+        }
+
+        private void PersistLeaveMonth()
+        {
+            _leaveService.SaveMonth(_leaveSelectedYear, _leaveSelectedMonth, _leaveMonthEntries);
+            LoadLeavesForSelectedMonth();
+
+            if (_leaveSelectedYear == _selectedYear && _leaveSelectedMonth == _selectedMonth)
+            {
+                LoadMonthlyUsage();
+            }
+        }
+
+        private void UpdateLeaveCommandsCanExecute()
+        {
+            if (SaveLeaveCommand is RelayCommand save)
+            {
+                save.RaiseCanExecuteChanged();
+            }
+            if (DeleteLeaveCommand is RelayCommand delete)
+            {
+                delete.RaiseCanExecuteChanged();
+            }
+            if (CancelLeaveEditCommand is RelayCommand cancel)
+            {
+                cancel.RaiseCanExecuteChanged();
+            }
+        }
+
+        #endregion
 
         public event PropertyChangedEventHandler? PropertyChanged;
 

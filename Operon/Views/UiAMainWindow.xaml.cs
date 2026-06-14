@@ -245,5 +245,87 @@ namespace SystemActivityTracker.Views
                 }
             }
         }
+
+        #region Activity Tooltip Click Handlers
+
+        private System.Windows.Controls.ToolTip? _activeTooltip;
+
+        /// <summary>
+        /// Handles click on Total Active text to pin/unpin tooltip
+        /// </summary>
+        private void OnTotalActiveClick(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is System.Windows.Controls.TextBlock textBlock)
+            {
+                ToggleTooltipPin(textBlock.ToolTip as System.Windows.Controls.ToolTip, textBlock);
+            }
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Handles click on Activity Bar to pin/unpin tooltip
+        /// </summary>
+        private void OnActivityBarClick(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is SystemActivityTracker.Controls.HorizontalActivityBar bar)
+            {
+                ToggleTooltipPin(bar.ToolTip as System.Windows.Controls.ToolTip, bar);
+            }
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Toggles tooltip pinned state. If same tooltip is already pinned, close it.
+        /// If different tooltip or none pinned, open and pin this one.
+        /// </summary>
+        private void ToggleTooltipPin(System.Windows.Controls.ToolTip? tooltip, System.Windows.DependencyObject? placementTarget = null)
+        {
+            if (tooltip == null) return;
+
+            // If this tooltip is already open (pinned), close it
+            if (_activeTooltip == tooltip && tooltip.IsOpen)
+            {
+                tooltip.IsOpen = false;
+                _activeTooltip = null;
+            }
+            else
+            {
+                // Close any previously pinned tooltip
+                if (_activeTooltip != null && _activeTooltip != tooltip)
+                {
+                    _activeTooltip.IsOpen = false;
+                }
+
+                // Ensure tooltip has proper placement target for positioning
+                if (placementTarget != null && tooltip.PlacementTarget == null)
+                {
+                    tooltip.PlacementTarget = placementTarget as System.Windows.UIElement;
+                    tooltip.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+                }
+
+                // Open and pin this tooltip
+                tooltip.IsOpen = true;
+                _activeTooltip = tooltip;
+            }
+        }
+
+        #endregion
+
+        /// <summary>
+        /// Handles Delete button PreviewMouseLeftButtonDown to execute delete command without selecting the row.
+        /// This prevents the deleted row's values from loading into the edit form.
+        /// </summary>
+        private void DeleteButton_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is System.Windows.Controls.Button button && button.CommandParameter is SystemActivityTracker.Models.ManualTaskEntry entry)
+            {
+                if (DataContext is MainWindowViewModel viewModel)
+                {
+                    viewModel.DeleteManualTaskRowCommand.Execute(entry);
+                }
+            }
+            // Mark event as handled to prevent DataGrid row selection
+            e.Handled = true;
+        }
     }
 }
