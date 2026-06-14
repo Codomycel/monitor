@@ -2,6 +2,8 @@
 
 ## Simple Productivity & Activity Tracking for Windows
 
+For release tagging and portable Windows builds, see [RELEASE.md](RELEASE.md).
+
 ---
 
 ## 1. What is this app?
