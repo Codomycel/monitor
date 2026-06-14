@@ -209,6 +209,48 @@ namespace SystemActivityTracker.ViewModels
         }
 
         /// <summary>
+        /// Actual pixel width for Total Active fill within the 60px reference bar
+        /// Formula: Min(TotalActiveMinutes / 480, 1.0) * 60
+        /// </summary>
+        private double _totalActiveFillWidth;
+        public double TotalActiveFillWidth
+        {
+            get => _totalActiveFillWidth;
+            private set
+            {
+                if (Math.Abs(_totalActiveFillWidth - value) > 0.001)
+                {
+                    _totalActiveFillWidth = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Fill ratio as percentage of 8h reference (0.0 to 1.0)
+        /// Used for star-based Grid column sizing
+        /// </summary>
+        private double _fillRatio;
+        public double FillRatio
+        {
+            get => _fillRatio;
+            private set
+            {
+                if (Math.Abs(_fillRatio - value) > 0.001)
+                {
+                    _fillRatio = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Remaining ratio (1.0 - FillRatio)
+        /// Used for star-based Grid column sizing of the unfilled portion
+        /// </summary>
+        public double RemainingRatio => 1.0 - FillRatio;
+
+        /// <summary>
         /// Width proportion for remaining/unfilled time up to 8-hour reference
         /// </summary>
         private double _remainingWidth;
@@ -239,6 +281,11 @@ namespace SystemActivityTracker.ViewModels
         /// Only Total Active is visible (fills 100% or more of reference, no remaining)
         /// </summary>
         public bool ShowOnlyTotalActive => ShowTotalActive && !ShowRemaining;
+
+        /// <summary>
+        /// Partial fill - both filled and remaining portions are visible
+        /// </summary>
+        public bool ShowPartialFill => ShowTotalActive && ShowRemaining;
 
         /// <summary>
         /// Only Remaining is visible (no tracked time within 8-hour reference)
@@ -401,6 +448,7 @@ namespace SystemActivityTracker.ViewModels
         {
             var total = TotalDuration;
             var referenceSeconds = ReferenceTime.TotalSeconds; // 8 hours = 28800 seconds
+            const double barWidthPixels = 60.0; // Fixed width of the bar in pixels
 
             if (total > TimeSpan.Zero)
             {
@@ -414,6 +462,14 @@ namespace SystemActivityTracker.ViewModels
                 // Total Active width for single-bar display (Active + Manual)
                 TotalActiveWidth = TotalActiveDuration.TotalSeconds;
 
+                // Calculate fill ratio based on 8-hour reference (480 minutes)
+                // Formula: Min(TotalActiveMinutes / 480, 1.0)
+                var totalActiveMinutes = TotalActiveDuration.TotalMinutes;
+                FillRatio = Math.Min(totalActiveMinutes / 480.0, 1.0);
+                
+                // Calculate pixel fill width for backward compatibility
+                TotalActiveFillWidth = FillRatio * barWidthPixels;
+
                 // Calculate remaining/unfilled portion up to 8-hour reference
                 var trackedSeconds = total.TotalSeconds;
                 RemainingWidth = Math.Max(0, referenceSeconds - trackedSeconds);
@@ -426,6 +482,8 @@ namespace SystemActivityTracker.ViewModels
                 IdleWidth = 0;
                 LockedWidth = 0;
                 TotalActiveWidth = 0;
+                FillRatio = 0;
+                TotalActiveFillWidth = 0;
                 RemainingWidth = referenceSeconds;
             }
 
@@ -436,6 +494,7 @@ namespace SystemActivityTracker.ViewModels
             OnPropertyChanged(nameof(ShowLocked));
             OnPropertyChanged(nameof(ShowTotalActive));
             OnPropertyChanged(nameof(ShowOnlyTotalActive));
+            OnPropertyChanged(nameof(ShowPartialFill));
             OnPropertyChanged(nameof(ShowRemaining));
             OnPropertyChanged(nameof(ShowOnlyRemaining));
             OnPropertyChanged(nameof(ShowRemainingEnd));
@@ -443,6 +502,8 @@ namespace SystemActivityTracker.ViewModels
 
             // Update width properties
             OnPropertyChanged(nameof(TotalActiveWidth));
+            OnPropertyChanged(nameof(FillRatio));
+            OnPropertyChanged(nameof(TotalActiveFillWidth));
             OnPropertyChanged(nameof(RemainingWidth));
 
             // Update display text

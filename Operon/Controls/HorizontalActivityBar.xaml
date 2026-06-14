@@ -3,52 +3,48 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:local="clr-namespace:SystemActivityTracker.Controls"
              mc:Ignorable="d"
              d:DesignHeight="20" d:DesignWidth="120"
              Background="Transparent">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        
+        <!-- Converter to convert double ratio to Star GridLength -->
+        <!-- Example: 0.375 becomes "0.375*" for 37.5% width -->
+        <local:DoubleToGridLengthConverter x:Key="DoubleToGridLengthConverter"/>
     </UserControl.Resources>
 
-    <Grid Height="8" VerticalAlignment="Center">
-        <!-- Empty state background (shown when no data - full 8h reference as empty) -->
-        <Border Background="{Binding EmptyBackgroundBrush}"
-                CornerRadius="2"
-                Visibility="{Binding HasData, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Inverted}"/>
+    <!-- Outer border wrapping the entire 8h reference bar -->
+    <Border BorderBrush="#9CA3AF"
+            BorderThickness="1"
+            CornerRadius="2"
+            Padding="0">
+        <Grid Height="8" VerticalAlignment="Center">
+            <!-- Empty state background (shown when no data - full 8h reference as empty) -->
+            <Border Background="{Binding EmptyBackgroundBrush}"
+                    CornerRadius="2"
+                    Visibility="{Binding HasData, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Inverted}"/>
 
-        <!-- Total Active progress bar (fills left-to-right, 8h reference) -->
-        <Grid Visibility="{Binding HasData, Converter={StaticResource BoolToVisibilityConverter}}">
-            <Grid.ColumnDefinitions>
-                <!-- Total Active segment (Active + Manual) -->
-                <ColumnDefinition Width="{Binding TotalActiveWidth, Mode=OneWay}" x:Name="TotalActiveColumn"/>
-                <!-- Remaining/unfilled segment up to 8-hour reference -->
-                <ColumnDefinition Width="{Binding RemainingWidth, Mode=OneWay}" x:Name="RemainingColumn"/>
-            </Grid.ColumnDefinitions>
-
-            <!-- Total Active segment - filled portion with rounded left corners -->
-            <Border Grid.Column="0"
-                    Background="{Binding ActiveBrush}"
-                    Visibility="{Binding ShowTotalActive, Converter={StaticResource BoolToVisibilityConverter}}"
-                    CornerRadius="2,0,0,2"/>
-
-            <!-- When only Total Active is visible (100% or more of reference) -->
-            <Border Grid.Column="0"
-                    Background="{Binding ActiveBrush}"
-                    Visibility="{Binding ShowOnlyTotalActive, Converter={StaticResource BoolToVisibilityConverter}}"
-                    CornerRadius="2"/>
-
-            <!-- Remaining/unfilled segment - background color with rounded right corners -->
-            <Border Grid.Column="1"
-                    Background="{Binding EmptyBackgroundBrush}"
-                    Visibility="{Binding ShowRemaining, Converter={StaticResource BoolToVisibilityConverter}}"
-                    CornerRadius="0,2,2,0"/>
-
-            <!-- When only Remaining is visible (no tracked time) -->
-            <Border Grid.Column="1"
-                    Background="{Binding EmptyBackgroundBrush}"
-                    Visibility="{Binding ShowOnlyRemaining, Converter={StaticResource BoolToVisibilityConverter}}"
-                    CornerRadius="2"/>
+            <!-- Total Active progress bar using 2-column Grid with star sizing -->
+            <!-- FillRatio* : (1-FillRatio)* distribution ensures proper proportional fill -->
+            <Grid Visibility="{Binding HasData, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="{Binding FillRatio, Converter={StaticResource DoubleToGridLengthConverter}, ConverterParameter=*}" />
+                    <ColumnDefinition Width="{Binding RemainingRatio, Converter={StaticResource DoubleToGridLengthConverter}, ConverterParameter=*}" />
+                </Grid.ColumnDefinitions>
+                
+                <!-- Column 0: Filled portion (Active + Manual) -->
+                <Border Grid.Column="0"
+                        Background="{Binding ActiveBrush}"
+                        CornerRadius="2,0,0,2"/>
+                
+                <!-- Column 1: Remaining/unfilled portion -->
+                <Border Grid.Column="1"
+                        Background="{Binding EmptyBackgroundBrush}"
+                        CornerRadius="0,2,2,0"/>
+            </Grid>
         </Grid>
-    </Grid>
+    </Border>
 </UserControl>
