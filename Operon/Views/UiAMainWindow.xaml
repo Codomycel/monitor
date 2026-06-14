@@ -580,52 +580,124 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Style="{StaticResource CalendarDayCellStyle}">
+                                            <Border Style="{StaticResource CalendarDayCellStyle}" x:Name="DayCellBorder">
                                                 <Grid>
                                                     <Grid.RowDefinitions>
                                                         <RowDefinition Height="Auto"/>
                                                         <RowDefinition Height="*"/>
                                                     </Grid.RowDefinitions>
-                                                    
+
                                                     <!-- Date Number (only for regular days) -->
-                                                    <TextBlock Grid.Row="0" Text="{Binding Date, StringFormat={}{0:dd}}" 
-                                                               FontWeight="SemiBold" 
-                                                               Margin="0,0,0,4"
+                                                    <TextBlock Grid.Row="0" Text="{Binding Date, StringFormat={}{0:dd}}"
+                                                               FontWeight="SemiBold"
+                                                               Margin="4,4,0,0"
                                                                HorizontalAlignment="Left"
                                                                Visibility="{Binding IsWeeklySummary, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
-                                                    
+
                                                     <!-- Week Number (only for summary cells) -->
-                                                    <TextBlock Grid.Row="0" Text="{Binding WeekNumber, StringFormat=W{0}}" 
-                                                               FontWeight="Bold" 
-                                                               Margin="0,0,0,4"
+                                                    <TextBlock Grid.Row="0" Text="{Binding WeekNumber, StringFormat=W{0}}"
+                                                               FontWeight="Bold"
+                                                               Margin="0,4,0,0"
                                                                HorizontalAlignment="Center"
                                                                Style="{StaticResource SecondaryTextStyle}"
                                                                Visibility="{Binding IsWeeklySummary, Converter={StaticResource BoolToVisibilityConverter}}"/>
                                                     
                                                     <!-- Horizontal Activity Bar / Future placeholder / Weekly Summary -->
                                                     <Grid Grid.Row="1">
-                                                        <!-- Horizontal Activity Bar: visible only when not future and not weekly summary -->
-                                                        <controls:HorizontalActivityBar DataContext="{Binding HorizontalBarViewModel}"
-                                                                                        Margin="4,8,4,8"
-                                                                                        Height="12"
-                                                                                        VerticalAlignment="Center"
-                                                                                        HorizontalAlignment="Stretch">
-                                                            <controls:HorizontalActivityBar.Style>
-                                                                <Style TargetType="controls:HorizontalActivityBar">
-                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                    <Style.Triggers>
-                                                                        <MultiDataTrigger>
-                                                                            <MultiDataTrigger.Conditions>
-                                                                                <Condition Binding="{Binding DataContext.IsFuture, RelativeSource={RelativeSource AncestorType=Border}}" Value="False"/>
-                                                                                <Condition Binding="{Binding DataContext.HasChart, RelativeSource={RelativeSource AncestorType=Border}}" Value="True"/>
-                                                                                <Condition Binding="{Binding DataContext.IsWeeklySummary, RelativeSource={RelativeSource AncestorType=Border}}" Value="False"/>
-                                                                            </MultiDataTrigger.Conditions>
-                                                                            <Setter Property="Visibility" Value="Visible"/>
-                                                                        </MultiDataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </controls:HorizontalActivityBar.Style>
-                                                        </controls:HorizontalActivityBar>
+                                                        <!-- Day content: Total Active text + Horizontal bar - centered vertically and horizontally -->
+                                                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                                    Visibility="{Binding DataContext.IsWeeklySummary, RelativeSource={RelativeSource AncestorType=Border}, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                                                            <!-- Total Active hours text - HHh MMm format, larger, centered -->
+                                                            <TextBlock x:Name="TotalActiveTextBlock"
+                                                                       DataContext="{Binding DataContext.HorizontalBarViewModel, RelativeSource={RelativeSource AncestorType=Border}}"
+                                                                       Text="{Binding TotalActiveText}"
+                                                                       FontWeight="Bold"
+                                                                       FontSize="14"
+                                                                       Foreground="#1F2937"
+                                                                       HorizontalAlignment="Center"
+                                                                       Margin="0,0,0,4"
+                                                                       ToolTipService.ShowDuration="30000"
+                                                                       ToolTipService.InitialShowDelay="100"
+                                                                       MouseLeftButtonDown="OnTotalActiveClick">
+                                                                <TextBlock.ToolTip>
+                                                                    <ToolTip Background="White" BorderBrush="#D1D5DB" BorderThickness="1" Padding="12" MaxWidth="280">
+                                                                        <StackPanel>
+                                                                            <TextBlock Text="{Binding TooltipTotalActive}" FontSize="16" FontWeight="Bold" Foreground="#1F2937" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                                                            <Separator Height="1" Background="#E5E7EB" Margin="0,0,0,8"/>
+                                                                            <StackPanel Margin="0,0,0,8">
+                                                                                <TextBlock Text="{Binding TooltipActive}" FontSize="10" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,0,0,2"/>
+                                                                                <TextBlock Text="{Binding TooltipManual}" FontSize="10" Foreground="#6B7280" TextWrapping="Wrap"/>
+                                                                            </StackPanel>
+                                                                            <Separator Height="1" Background="#E5E7EB" Margin="0,0,0,8"/>
+                                                                            <StackPanel>
+                                                                                <TextBlock Text="{Binding TooltipIdle}" FontSize="10" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,0,0,2"/>
+                                                                                <TextBlock Text="{Binding TooltipLocked}" FontSize="10" Foreground="#6B7280" TextWrapping="Wrap"/>
+                                                                            </StackPanel>
+                                                                        </StackPanel>
+                                                                    </ToolTip>
+                                                                </TextBlock.ToolTip>
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Setter Property="Cursor" Value="Hand"/>
+                                                                        <Style.Triggers>
+                                                                            <MultiDataTrigger>
+                                                                                <MultiDataTrigger.Conditions>
+                                                                                    <Condition Binding="{Binding DataContext.IsFuture, RelativeSource={RelativeSource AncestorType=Border}}" Value="False"/>
+                                                                                    <Condition Binding="{Binding DataContext.HasChart, RelativeSource={RelativeSource AncestorType=Border}}" Value="True"/>
+                                                                                </MultiDataTrigger.Conditions>
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </MultiDataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+
+                                                            <!-- Horizontal Activity Bar - compact, below text, limited width -->
+                                                            <controls:HorizontalActivityBar x:Name="ActivityBar"
+                                                                                            DataContext="{Binding DataContext.HorizontalBarViewModel, RelativeSource={RelativeSource AncestorType=Border}}"
+                                                                                            Margin="0,0,0,0"
+                                                                                            Height="8"
+                                                                                            Width="60"
+                                                                                            VerticalAlignment="Center"
+                                                                                            HorizontalAlignment="Center"
+                                                                                            ToolTipService.ShowDuration="30000"
+                                                                                            ToolTipService.InitialShowDelay="100"
+                                                                                            MouseLeftButtonDown="OnActivityBarClick">
+                                                                <controls:HorizontalActivityBar.ToolTip>
+                                                                    <ToolTip Background="White" BorderBrush="#D1D5DB" BorderThickness="1" Padding="12" MaxWidth="280">
+                                                                        <StackPanel>
+                                                                            <TextBlock Text="{Binding TooltipTotalActive}" FontSize="16" FontWeight="Bold" Foreground="#1F2937" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                                                            <Separator Height="1" Background="#E5E7EB" Margin="0,0,0,8"/>
+                                                                            <StackPanel Margin="0,0,0,8">
+                                                                                <TextBlock Text="{Binding TooltipActive}" FontSize="10" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,0,0,2"/>
+                                                                                <TextBlock Text="{Binding TooltipManual}" FontSize="10" Foreground="#6B7280" TextWrapping="Wrap"/>
+                                                                            </StackPanel>
+                                                                            <Separator Height="1" Background="#E5E7EB" Margin="0,0,0,8"/>
+                                                                            <StackPanel>
+                                                                                <TextBlock Text="{Binding TooltipIdle}" FontSize="10" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,0,0,2"/>
+                                                                                <TextBlock Text="{Binding TooltipLocked}" FontSize="10" Foreground="#6B7280" TextWrapping="Wrap"/>
+                                                                            </StackPanel>
+                                                                        </StackPanel>
+                                                                    </ToolTip>
+                                                                </controls:HorizontalActivityBar.ToolTip>
+                                                                <controls:HorizontalActivityBar.Style>
+                                                                    <Style TargetType="controls:HorizontalActivityBar">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Setter Property="Cursor" Value="Hand"/>
+                                                                        <Style.Triggers>
+                                                                            <MultiDataTrigger>
+                                                                                <MultiDataTrigger.Conditions>
+                                                                                    <Condition Binding="{Binding DataContext.IsFuture, RelativeSource={RelativeSource AncestorType=Border}}" Value="False"/>
+                                                                                    <Condition Binding="{Binding DataContext.HasChart, RelativeSource={RelativeSource AncestorType=Border}}" Value="True"/>
+                                                                                </MultiDataTrigger.Conditions>
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </MultiDataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </controls:HorizontalActivityBar.Style>
+                                                            </controls:HorizontalActivityBar>
+                                                        </StackPanel>
 
                                                         <!-- Future dates: intentionally left empty (no chart, no text) -->
 

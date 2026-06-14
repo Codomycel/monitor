@@ -100,6 +100,20 @@ namespace SystemActivityTracker.ViewModels
         public TimeSpan TotalActiveDuration => ActiveDuration + ManualDuration;
 
         /// <summary>
+        /// Total Active formatted for display in month view as HHh MMm (e.g., "06h 00m")
+        /// </summary>
+        public string TotalActiveText
+        {
+            get
+            {
+                var total = TotalActiveDuration;
+                var hours = (int)total.TotalHours;
+                var minutes = total.Minutes;
+                return $"{hours:D2}h {minutes:D2}m";
+            }
+        }
+
+        /// <summary>
         /// Total duration of all segments (for proportional sizing)
         /// </summary>
         public TimeSpan TotalDuration => ActiveDuration + ManualDuration + IdleDuration + LockedDuration;
@@ -176,6 +190,65 @@ namespace SystemActivityTracker.ViewModels
                 }
             }
         }
+
+        /// <summary>
+        /// Width proportion for Total Active segment (Active + Manual) for single-bar display
+        /// </summary>
+        private double _totalActiveWidth;
+        public double TotalActiveWidth
+        {
+            get => _totalActiveWidth;
+            private set
+            {
+                if (Math.Abs(_totalActiveWidth - value) > 0.001)
+                {
+                    _totalActiveWidth = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Width proportion for remaining/unfilled time up to 8-hour reference
+        /// </summary>
+        private double _remainingWidth;
+        public double RemainingWidth
+        {
+            get => _remainingWidth;
+            private set
+            {
+                if (Math.Abs(_remainingWidth - value) > 0.001)
+                {
+                    _remainingWidth = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Whether to show remaining/unfilled segment
+        /// </summary>
+        public bool ShowRemaining => RemainingWidth > 0.001;
+
+        /// <summary>
+        /// Whether to show Total Active segment (for single-bar display)
+        /// </summary>
+        public bool ShowTotalActive => TotalActiveDuration > TimeSpan.Zero;
+
+        /// <summary>
+        /// Only Total Active is visible (fills 100% or more of reference, no remaining)
+        /// </summary>
+        public bool ShowOnlyTotalActive => ShowTotalActive && !ShowRemaining;
+
+        /// <summary>
+        /// Only Remaining is visible (no tracked time within 8-hour reference)
+        /// </summary>
+        public bool ShowOnlyRemaining => !ShowTotalActive && ShowRemaining;
+
+        /// <summary>
+        /// Remaining is the last segment after tracked segments
+        /// </summary>
+        public bool ShowRemainingEnd => ShowRemaining && ShowTotalActive;
 
         /// <summary>
         /// Whether to show Active segment
@@ -268,9 +341,10 @@ namespace SystemActivityTracker.ViewModels
         }
 
         /// <summary>
-        /// Brush for Manual segment - uses same amber as UiB selected day chart
+        /// Brush for Manual segment - TEMPORARY color from existing gradient (#FBA73C orange)
+        /// This color is centralized here for easy theme updates later
         /// </summary>
-        public System.Windows.Media.Brush ManualBrush { get; } = new SolidColorBrush(System.Windows.Media.Color.FromRgb(245, 158, 11)); // #F59E0B
+        public System.Windows.Media.Brush ManualBrush { get; } = new SolidColorBrush(System.Windows.Media.Color.FromRgb(251, 146, 60)); // #FBA73C from existing gradient (TEMPORARY)
 
         /// <summary>
         /// Brush for Idle segment - same as ActivityChartViewModel
@@ -326,21 +400,33 @@ namespace SystemActivityTracker.ViewModels
         private void Recalculate()
         {
             var total = TotalDuration;
+            var referenceSeconds = ReferenceTime.TotalSeconds; // 8 hours = 28800 seconds
+
             if (total > TimeSpan.Zero)
             {
-                // Use seconds as the proportional width value
+                // Use 8-hour reference for proportional width calculation
+                // Segments are sized relative to the 8-hour reference, not the total duration
                 ActiveWidth = ActiveDuration.TotalSeconds;
                 ManualWidth = ManualDuration.TotalSeconds;
                 IdleWidth = IdleDuration.TotalSeconds;
                 LockedWidth = LockedDuration.TotalSeconds;
+
+                // Total Active width for single-bar display (Active + Manual)
+                TotalActiveWidth = TotalActiveDuration.TotalSeconds;
+
+                // Calculate remaining/unfilled portion up to 8-hour reference
+                var trackedSeconds = total.TotalSeconds;
+                RemainingWidth = Math.Max(0, referenceSeconds - trackedSeconds);
             }
             else
             {
-                // No data - all segments zero width
+                // No data - all segments zero width, remaining = full reference
                 ActiveWidth = 0;
                 ManualWidth = 0;
                 IdleWidth = 0;
                 LockedWidth = 0;
+                TotalActiveWidth = 0;
+                RemainingWidth = referenceSeconds;
             }
 
             // Update visibility properties
@@ -348,7 +434,19 @@ namespace SystemActivityTracker.ViewModels
             OnPropertyChanged(nameof(ShowManual));
             OnPropertyChanged(nameof(ShowIdle));
             OnPropertyChanged(nameof(ShowLocked));
+            OnPropertyChanged(nameof(ShowTotalActive));
+            OnPropertyChanged(nameof(ShowOnlyTotalActive));
+            OnPropertyChanged(nameof(ShowRemaining));
+            OnPropertyChanged(nameof(ShowOnlyRemaining));
+            OnPropertyChanged(nameof(ShowRemainingEnd));
             OnPropertyChanged(nameof(HasData));
+
+            // Update width properties
+            OnPropertyChanged(nameof(TotalActiveWidth));
+            OnPropertyChanged(nameof(RemainingWidth));
+
+            // Update display text
+            OnPropertyChanged(nameof(TotalActiveText));
 
             // Update corner radius visibility properties
             OnPropertyChanged(nameof(ShowManualNoActive));

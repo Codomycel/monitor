@@ -11,161 +11,44 @@
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
     </UserControl.Resources>
 
-    <Grid Height="12" VerticalAlignment="Center">
-        <!-- Empty state background (shown when no data) -->
-        <Border Background="{Binding EmptyBackgroundBrush}" 
-                CornerRadius="3"
+    <Grid Height="8" VerticalAlignment="Center">
+        <!-- Empty state background (shown when no data - full 8h reference as empty) -->
+        <Border Background="{Binding EmptyBackgroundBrush}"
+                CornerRadius="2"
                 Visibility="{Binding HasData, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Inverted}"/>
 
-        <!-- Horizontal stacked bar (only visible when HasData is true) -->
+        <!-- Total Active progress bar (fills left-to-right, 8h reference) -->
         <Grid Visibility="{Binding HasData, Converter={StaticResource BoolToVisibilityConverter}}">
             <Grid.ColumnDefinitions>
-                <!-- Active segment -->
-                <ColumnDefinition Width="{Binding ActiveWidth, Mode=OneWay}" x:Name="ActiveColumn"/>
-                <!-- Manual segment -->
-                <ColumnDefinition Width="{Binding ManualWidth, Mode=OneWay}" x:Name="ManualColumn"/>
-                <!-- Idle segment -->
-                <ColumnDefinition Width="{Binding IdleWidth, Mode=OneWay}" x:Name="IdleColumn"/>
-                <!-- Locked segment -->
-                <ColumnDefinition Width="{Binding LockedWidth, Mode=OneWay}" x:Name="LockedColumn"/>
+                <!-- Total Active segment (Active + Manual) -->
+                <ColumnDefinition Width="{Binding TotalActiveWidth, Mode=OneWay}" x:Name="TotalActiveColumn"/>
+                <!-- Remaining/unfilled segment up to 8-hour reference -->
+                <ColumnDefinition Width="{Binding RemainingWidth, Mode=OneWay}" x:Name="RemainingColumn"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Active segment -->
+            <!-- Total Active segment - filled portion with rounded left corners -->
             <Border Grid.Column="0"
                     Background="{Binding ActiveBrush}"
-                    Visibility="{Binding ShowActive, Converter={StaticResource BoolToVisibilityConverter}}"
-                    CornerRadius="3,0,0,3"/>
+                    Visibility="{Binding ShowTotalActive, Converter={StaticResource BoolToVisibilityConverter}}"
+                    CornerRadius="2,0,0,2"/>
 
-            <!-- Manual segment -->
-            <Border Grid.Column="1"
-                    Background="{Binding ManualBrush}"
-                    Visibility="{Binding ShowManual, Converter={StaticResource BoolToVisibilityConverter}}"/>
-
-            <!-- Idle segment -->
-            <Border Grid.Column="2"
-                    Background="{Binding IdleBrush}"
-                    Visibility="{Binding ShowIdle, Converter={StaticResource BoolToVisibilityConverter}}"/>
-
-            <!-- Locked segment (rightmost, rounded right corners) -->
-            <Border Grid.Column="3"
-                    Background="{Binding LockedBrush}"
-                    Visibility="{Binding ShowLocked, Converter={StaticResource BoolToVisibilityConverter}}"
-                    CornerRadius="0,3,3,0"/>
-
-            <!-- When Manual is first visible segment (no Active) -->
-            <Border Grid.Column="1"
-                    Background="{Binding ManualBrush}"
-                    Visibility="{Binding ShowManualNoActive, Converter={StaticResource BoolToVisibilityConverter}}"
-                    CornerRadius="3,0,0,3"/>
-
-            <!-- When Idle is first visible segment (no Active/Manual) -->
-            <Border Grid.Column="2"
-                    Background="{Binding IdleBrush}"
-                    Visibility="{Binding ShowIdleFirst, Converter={StaticResource BoolToVisibilityConverter}}"
-                    CornerRadius="3,0,0,3"/>
-
-            <!-- When Locked is first visible segment -->
-            <Border Grid.Column="3"
-                    Background="{Binding LockedBrush}"
-                    Visibility="{Binding ShowLockedFirst, Converter={StaticResource BoolToVisibilityConverter}}"
-                    CornerRadius="3"/>
-
-            <!-- When only Active is visible -->
+            <!-- When only Total Active is visible (100% or more of reference) -->
             <Border Grid.Column="0"
                     Background="{Binding ActiveBrush}"
-                    Visibility="{Binding ShowOnlyActive, Converter={StaticResource BoolToVisibilityConverter}}"
-                    CornerRadius="3"/>
+                    Visibility="{Binding ShowOnlyTotalActive, Converter={StaticResource BoolToVisibilityConverter}}"
+                    CornerRadius="2"/>
 
-            <!-- When only Manual is visible -->
+            <!-- Remaining/unfilled segment - background color with rounded right corners -->
             <Border Grid.Column="1"
-                    Background="{Binding ManualBrush}"
-                    Visibility="{Binding ShowOnlyManual, Converter={StaticResource BoolToVisibilityConverter}}"
-                    CornerRadius="3"/>
+                    Background="{Binding EmptyBackgroundBrush}"
+                    Visibility="{Binding ShowRemaining, Converter={StaticResource BoolToVisibilityConverter}}"
+                    CornerRadius="0,2,2,0"/>
 
-            <!-- When only Idle is visible -->
-            <Border Grid.Column="2"
-                    Background="{Binding IdleBrush}"
-                    Visibility="{Binding ShowOnlyIdle, Converter={StaticResource BoolToVisibilityConverter}}"
-                    CornerRadius="3"/>
-
-            <!-- When only Locked is visible -->
-            <Border Grid.Column="3"
-                    Background="{Binding LockedBrush}"
-                    Visibility="{Binding ShowOnlyLocked, Converter={StaticResource BoolToVisibilityConverter}}"
-                    CornerRadius="3"/>
-
-            <!-- Active+Manual ending (Active start, Manual end) -->
+            <!-- When only Remaining is visible (no tracked time) -->
             <Border Grid.Column="1"
-                    Background="{Binding ManualBrush}"
-                    Visibility="{Binding ShowManualEnd, Converter={StaticResource BoolToVisibilityConverter}}"
-                    CornerRadius="0,3,3,0"/>
-
-            <!-- Active+Manual+Idle ending -->
-            <Border Grid.Column="2"
-                    Background="{Binding IdleBrush}"
-                    Visibility="{Binding ShowIdleEnd, Converter={StaticResource BoolToVisibilityConverter}}"
-                    CornerRadius="0,3,3,0"/>
-
-            <!-- Any combination ending with Locked -->
-            <Border Grid.Column="3"
-                    Background="{Binding LockedBrush}"
-                    Visibility="{Binding ShowLockedAlwaysEnd, Converter={StaticResource BoolToVisibilityConverter}}"
-                    CornerRadius="0,3,3,0"/>
+                    Background="{Binding EmptyBackgroundBrush}"
+                    Visibility="{Binding ShowOnlyRemaining, Converter={StaticResource BoolToVisibilityConverter}}"
+                    CornerRadius="2"/>
         </Grid>
-
-        <!-- Tooltip container (covers entire bar area) -->
-        <Border Background="Transparent" 
-                ToolTipService.ShowDuration="30000"
-                ToolTipService.InitialShowDelay="100">
-            <Border.ToolTip>
-                <ToolTip Background="White" 
-                         BorderBrush="#D1D5DB" 
-                         BorderThickness="1" 
-                         Padding="12" 
-                         MaxWidth="280">
-                    <StackPanel>
-                        <!-- Total Active (BIG font) -->
-                        <TextBlock Text="{Binding TooltipTotalActive}" 
-                                   FontSize="16" 
-                                   FontWeight="Bold" 
-                                   Foreground="#1F2937" 
-                                   TextWrapping="Wrap" 
-                                   Margin="0,0,0,8"/>
-
-                        <!-- Separator -->
-                        <Separator Height="1" Background="#E5E7EB" Margin="0,0,0,8"/>
-
-                        <!-- Active and Manual -->
-                        <StackPanel Margin="0,0,0,8">
-                            <TextBlock Text="{Binding TooltipActive}" 
-                                       FontSize="10" 
-                                       Foreground="#6B7280" 
-                                       TextWrapping="Wrap" 
-                                       Margin="0,0,0,2"/>
-                            <TextBlock Text="{Binding TooltipManual}" 
-                                       FontSize="10" 
-                                       Foreground="#6B7280" 
-                                       TextWrapping="Wrap"/>
-                        </StackPanel>
-
-                        <!-- Separator -->
-                        <Separator Height="1" Background="#E5E7EB" Margin="0,0,0,8"/>
-
-                        <!-- Idle and Locked -->
-                        <StackPanel>
-                            <TextBlock Text="{Binding TooltipIdle}" 
-                                       FontSize="10" 
-                                       Foreground="#6B7280" 
-                                       TextWrapping="Wrap" 
-                                       Margin="0,0,0,2"/>
-                            <TextBlock Text="{Binding TooltipLocked}" 
-                                       FontSize="10" 
-                                       Foreground="#6B7280" 
-                                       TextWrapping="Wrap"/>
-                        </StackPanel>
-                    </StackPanel>
-                </ToolTip>
-            </Border.ToolTip>
-        </Border>
     </Grid>
 </UserControl>

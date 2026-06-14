@@ -17,12 +17,14 @@ The HorizontalActivityBar control SHALL display four time segments in a horizont
 - **AND** no exception is thrown
 
 ### Requirement: Total Active display in month view
-The month view SHALL display Total Active hours text for each day directly in the calendar cell. Total Active SHALL be calculated as Active + Manual Tasks and SHALL be visible without requiring hover.
+The month view SHALL display Total Active hours text for each day directly in the calendar cell. Total Active SHALL be calculated as Active + Manual Tasks and SHALL be visible without requiring hover. The text SHALL be formatted as `HHh MMm`, visually larger, and centered both horizontally and vertically within the tile.
 
 #### Scenario: Day has activity data
 - **WHEN** a calendar day has Active=3h and Manual=1h
-- **THEN** "4h 0m" (or similar format) displays directly in the month view cell
-- **AND** the text is positioned near the horizontal activity bar
+- **THEN** "04h 00m" (HHh MMm format) displays directly in the month view cell
+- **AND** the text is visually larger (e.g., FontSize 14-16, FontWeight Bold)
+- **AND** the text is centered horizontally and vertically within the tile
+- **AND** the horizontal bar is positioned below the text as a compact indicator
 
 ### Requirement: Total Active calculation
 The system SHALL calculate Total Active as the sum of Active and Manual Tasks durations. Total Active SHALL be displayed in both the month view cell AND the tooltip. Total Active SHALL NOT be displayed as a separate segment in the bar.
@@ -30,9 +32,27 @@ The system SHALL calculate Total Active as the sum of Active and Manual Tasks du
 #### Scenario: Active and Manual Tasks present
 - **WHEN** Active=4h and Manual=2h
 - **THEN** "Total Active: 6 hours 0 minutes" displays in tooltip
-- **AND** "6h 0m" (or similar) displays in month view cell
+- **AND** "06h 00m" (HHh MMm format) displays in month view cell
 - **AND** Active segment color is calculated based on 6 hours vs reference time
 - **AND** bar shows Active and Manual as separate segments
+
+### Requirement: 8-hour reference bar length
+The horizontal bar SHALL use 8 hours as the visual reference/full bar length. Segments SHALL be sized proportionally within this 8-hour reference. If total tracked time exceeds 8 hours, the bar SHALL still be visually understandable without breaking the tile layout.
+
+#### Scenario: Less than 8 hours tracked
+- **WHEN** total tracked time is 6 hours
+- **THEN** the filled bar occupies 75% of the reference width (6/8)
+- **AND** segments are proportional within the filled portion
+
+#### Scenario: Exactly 8 hours tracked
+- **WHEN** total tracked time is 8 hours
+- **THEN** the filled bar occupies the full reference width (100%)
+
+#### Scenario: More than 8 hours tracked
+- **WHEN** total tracked time is 10 hours
+- **THEN** the filled bar extends beyond the reference or uses a scaled representation
+- **AND** the layout remains visually understandable
+- **AND** the tile does not break or overflow
 
 ### Requirement: Shared tooltip for text and bar
 Both the Total Active hours text AND the horizontal activity bar SHALL share the same tooltip content. Hovering over either element SHALL show the same tooltip with the activity breakdown.
@@ -50,20 +70,27 @@ Both the Total Active hours text AND the horizontal activity bar SHALL share the
   - Idle: X hours Y minutes
   - Locked: X hours Y minutes
 
-### Requirement: Tooltip pin on click
-The tooltip SHALL support a "pin" behavior where clicking on either the horizontal bar OR the Total Active text keeps the tooltip open. A second click on the same element SHALL close the tooltip.
+### Requirement: Tooltip pin on click with correct data
+The tooltip SHALL support a "pin" behavior where clicking on either the horizontal bar OR the Total Active text keeps the tooltip open with the SAME data as the hover tooltip. A second click on the same element SHALL close the tooltip. The pinned tooltip SHALL NOT be empty.
 
-#### Scenario: Click bar to pin tooltip
+#### Scenario: Click bar to pin tooltip with data
 - **WHEN** user clicks on the horizontal activity bar
-- **THEN** tooltip remains open (pinned)
+- **THEN** tooltip remains open (pinned) showing the correct activity breakdown data
+- **AND** the tooltip content matches the hover tooltip exactly
 - **WHEN** user clicks the same bar again
 - **THEN** tooltip closes
 
-#### Scenario: Click Total Active text to pin
+#### Scenario: Click Total Active text to pin with data
 - **WHEN** user clicks on Total Active hours text
-- **THEN** tooltip remains open (pinned)
+- **THEN** tooltip remains open (pinned) showing the correct activity breakdown data
+- **AND** the tooltip content matches the hover tooltip exactly
 - **WHEN** user clicks the same text again
 - **THEN** tooltip closes
+
+#### Scenario: Pinned tooltip never empty
+- **WHEN** user clicks to pin the tooltip
+- **THEN** the tooltip displays all activity data (Total Active, Active, Manual, Idle, Locked)
+- **AND** no empty or null content is shown
 
 ### Requirement: No axis or labels inside bar
 The HorizontalActivityBar SHALL NOT display any axis lines, axis labels, or text labels inside the bar segments.

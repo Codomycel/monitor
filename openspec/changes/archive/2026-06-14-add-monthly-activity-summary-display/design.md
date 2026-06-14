@@ -52,16 +52,20 @@ The existing architecture:
 - Rationale: Maintains backward compatibility. Existing code referencing ChartViewModel continues to work.
 - Alternative considered: Replacing ChartViewModel - rejected to avoid breaking existing functionality.
 
-**Decision 7: Display Total Active hours text directly in month view cell**
-- Rationale: Requirement states Total Active should be visible without hover. We'll add a TextBlock above the horizontal bar showing "Xh Ym" format.
+**Decision 7: Display Total Active hours text in HHh MMm format, centered in tile**
+- Rationale: Requirement updated for HHh MMm format (e.g., "06h 00m"), larger font, centered both horizontally and vertically in the tile. The text is the primary visual element; the bar is a secondary compact indicator.
 
-**Decision 8: Share tooltip between Total Active text and horizontal bar**
-- Rationale: Both elements should show the same detailed breakdown. We'll bind both elements to the same tooltip content from HorizontalBarViewModel.
-- Implementation: Use ToolTipService.SetToolTip on both elements pointing to the same ToolTip definition.
+**Decision 8: Use 8-hour reference for bar length**
+- Rationale: The bar uses 8 hours as the visual reference width. Segments are sized proportionally to 8 hours (not to total duration). For tracked time > 8 hours, the bar either extends or scales to remain visually understandable without breaking layout.
+- Implementation: Calculate widths as (duration / 8 hours) * referenceWidth, with capping or scaling for overflow.
 
-**Decision 9: Tooltip pin behavior via Click event handling**
-- Rationale: WPF ToolTipService doesn't natively support "pin on click" behavior. Will require attached behavior or code-behind to track pinned state.
-- Alternative considered: Custom tooltip control - rejected as overkill for this requirement.
+**Decision 9: Compact horizontal bar below centered text**
+- Rationale: The bar should not occupy the full tile. It should be a compact indicator positioned below the centered Total Active text, using limited vertical space.
+- Implementation: Use fixed or percentage-based bar height; position at bottom of tile; center the combined content vertically.
+
+**Decision 10: Tooltip pin behavior with data binding fix**
+- Rationale: The pinned tooltip was showing empty because the tooltip instance was created as a static resource without proper data context. Fix: Create tooltips with explicit DataContext bindings to HorizontalBarViewModel, ensuring the same tooltip content is used for hover and pinned states.
+- Implementation: Use ToolTip with PlacementTarget and bind TextBlock.Text directly to ViewModel properties; ensure the tooltip DataContext is set correctly before showing.
 
 ## Risks / Trade-offs
 
