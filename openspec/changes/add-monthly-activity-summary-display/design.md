@@ -34,15 +34,32 @@ The existing architecture:
 - Rationale: Simple, lightweight approach that scales segments proportionally without external charting libraries.
 - Alternative considered: Using LiveCharts stacked bar - rejected to avoid dependency and keep the control lightweight.
 
-**Decision 3: Duplicate color interpolation logic from ActivityChartViewModel**
-- Rationale: The gradient logic for "Total Active" color is simple and duplicating it keeps HorizontalActivityBarViewModel self-contained without creating new shared abstractions.
-- Alternative considered: Extracting shared color helper - deferred to keep changes localized.
+**Decision 3: Call existing ActivityChartViewModel.GetTotalActiveColor logic via extraction or duplication**
+- Rationale: The color logic for "Total Active" already exists in ActivityChartViewModel. We should either:
+  - Option A: Extract GetTotalActiveColor to a shared static helper class (preferred)
+  - Option B: Duplicate the method in HorizontalActivityBarViewModel (acceptable if extraction is too invasive)
+- Alternative considered: Creating new color logic - rejected to ensure color consistency.
 
-**Decision 4: Add HorizontalBarViewModel alongside existing ChartViewModel in MonthlyDayItem**
+**Decision 4: Use existing gradient color for Manual Tasks (temporary)**
+- Rationale: ActivityChartViewModel does NOT have a Manual Tasks color. We'll use #FBA73C (orange from the existing gradient) as a temporary color, centralized in the ViewModel as a property for easy theme changes later.
+- Alternative considered: Introducing new #F59E0B amber color - rejected as it's not in the existing chart.
+
+**Decision 5: Centralize all colors in HorizontalActivityBarViewModel properties**
+- Rationale: Even though we're reusing existing color values, we define them as properties in the ViewModel. This allows the user to change the theme later by modifying a single location.
+- ManualBrush will use #FBA73C (marked as temporary in comments)
+
+**Decision 6: Add HorizontalBarViewModel alongside existing ChartViewModel in MonthlyDayItem**
 - Rationale: Maintains backward compatibility. Existing code referencing ChartViewModel continues to work.
 - Alternative considered: Replacing ChartViewModel - rejected to avoid breaking existing functionality.
 
-**Decision 5: Tooltip pin behavior via Click event handling in XAML/code-behind**
+**Decision 7: Display Total Active hours text directly in month view cell**
+- Rationale: Requirement states Total Active should be visible without hover. We'll add a TextBlock above the horizontal bar showing "Xh Ym" format.
+
+**Decision 8: Share tooltip between Total Active text and horizontal bar**
+- Rationale: Both elements should show the same detailed breakdown. We'll bind both elements to the same tooltip content from HorizontalBarViewModel.
+- Implementation: Use ToolTipService.SetToolTip on both elements pointing to the same ToolTip definition.
+
+**Decision 9: Tooltip pin behavior via Click event handling**
 - Rationale: WPF ToolTipService doesn't natively support "pin on click" behavior. Will require attached behavior or code-behind to track pinned state.
 - Alternative considered: Custom tooltip control - rejected as overkill for this requirement.
 

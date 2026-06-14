@@ -5,13 +5,19 @@ The monthly calendar view currently shows activity data through a vertical chart
 ## What Changes
 
 - Add a reusable `HorizontalActivityBar` WPF user control that displays activity segments as a horizontal stacked bar
-- Display Total Active hours text in each monthly calendar day cell (Total Active = Active + Manual Tasks)
+- Display Total Active hours text **directly in each monthly calendar day cell** (not just in tooltip)
+- Total Active = Active + Manual Tasks (calculated and displayed in both cell and tooltip)
 - Integrate the horizontal activity bar into the monthly view grid alongside the Total Active text
-- Implement interactive tooltip behavior on both the Total Active text and the horizontal bar:
-  - Hover shows tooltip with activity breakdown
-  - Click pins tooltip open
-  - Second click closes tooltip
-- Reuse existing color scheme from the vertical activity chart (no new colors)
+- Implement **shared tooltip** for both Total Active text and horizontal bar:
+  - Hover over either element shows the same tooltip with activity breakdown
+  - Click on either element pins tooltip open
+  - Second click on same element closes tooltip
+- **Color strategy (reuse only existing colors)**:
+  - Active: reuse existing gradient logic from ActivityChartViewModel
+  - Manual: temporarily use #FBA73C (orange from existing gradient) - centralized for theme change
+  - Idle: #9CA3AF (from existing chart)
+  - Locked: #6B7280 (from existing chart)
+  - All colors centralized in ViewModel properties for easy theming
 - Keep existing `ActivityChartViewModel`/`ChartViewModel` intact for other views
 
 ## Capabilities
