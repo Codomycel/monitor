@@ -9,6 +9,19 @@
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="#111827"/>
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="#6B7280"/>
     <SolidColorBrush x:Key="SuccessBrush" Color="#10B981"/>
+    <SolidColorBrush x:Key="ManualTaskHighlightBorderBrush" Color="#81C784"/>
+    <SolidColorBrush x:Key="ManualTaskHighlightHoverBorderBrush" Color="#66BB6A"/>
+    <LinearGradientBrush x:Key="ManualTaskHighlightBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#E8F5E9" Offset="0"/>
+        <GradientStop Color="#C8E6C9" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="ManualTaskHighlightHoverBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#C8E6C9" Offset="0"/>
+        <GradientStop Color="#A5D6A7" Offset="1"/>
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="LeaveIndicatorBrush" Color="#F59E0B"/>
+    <SolidColorBrush x:Key="LeaveCalendarHighlightBrush" Color="#FEF3C7"/>
+    <SolidColorBrush x:Key="LeaveCalendarHighlightBorderBrush" Color="#F59E0B"/>
     <SolidColorBrush x:Key="ErrorBrush" Color="#EF4444"/>
     <SolidColorBrush x:Key="HeaderBackgroundBrush" Color="#F9FAFB"/>
     <SolidColorBrush x:Key="AlternateRowBrush" Color="#F9FAFB"/>
@@ -136,6 +149,41 @@
                             <Setter Property="Background" Value="#F9FAFB"/>
                             <Setter Property="Foreground" Value="#9CA3AF"/>
                             <Setter Property="Cursor" Value="Arrow"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Icon-only button (toolbar / glyph actions) -->
+    <Style x:Key="IconOnlyButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="MinWidth" Value="26"/>
+        <Setter Property="MinHeight" Value="26"/>
+        <Setter Property="Width" Value="26"/>
+        <Setter Property="Height" Value="26"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="#11000000"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter Property="Background" Value="#22000000"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.35"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

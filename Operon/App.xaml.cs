@@ -91,6 +91,7 @@ namespace SystemActivityTracker
             serviceCollection.AddSingleton<IActivityLogReader, ActivityLogReader>();
             serviceCollection.AddSingleton<ICrashLogReader, CrashLogReader>();
             serviceCollection.AddTransient<ManualTaskService>();
+            serviceCollection.AddTransient<LeaveService>();
 
             serviceCollection.AddTransient<LastCrashViewModel>(sp =>
                 new LastCrashViewModel(sp.GetRequiredService<ICrashLogReader>()));
@@ -101,6 +102,7 @@ namespace SystemActivityTracker
                     sp.GetService<SettingsService>(),
                     sp.GetRequiredService<IActivityLogReader>(),
                     sp.GetRequiredService<ManualTaskService>(),
+                    sp.GetRequiredService<LeaveService>(),
                     sp.GetRequiredService<LastCrashViewModel>()));
 
             Services = serviceCollection.BuildServiceProvider();

@@ -507,17 +507,38 @@
                                 </Setter.Value>
                             </Setter>
                             <Style.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
+                                <DataTrigger Binding="{Binding HasManualTasks}" Value="True">
+                                    <Setter Property="Background" Value="{StaticResource ManualTaskHighlightBrush}"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource ManualTaskHighlightBorderBrush}"/>
+                                    <Setter Property="Cursor" Value="Hand"/>
+                                </DataTrigger>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding HasManualTasks}" Value="True"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource Self}, Path=IsMouseOver}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Background" Value="{StaticResource ManualTaskHighlightHoverBrush}"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource ManualTaskHighlightHoverBorderBrush}"/>
+                                </MultiDataTrigger>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding HasManualTasks}" Value="False"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource Self}, Path=IsMouseOver}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
                                     <Setter Property="BorderBrush" Value="#D1D5DB"/>
                                     <Setter Property="Background" Value="#F9FAFB"/>
-                                </Trigger>
+                                </MultiDataTrigger>
                                 <DataTrigger Binding="{Binding IsCurrentMonth}" Value="False">
                                     <Setter Property="Opacity" Value="0.4"/>
                                     <Setter Property="IsHitTestVisible" Value="False"/>
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding IsWeekend}" Value="True">
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding IsWeekend}" Value="True"/>
+                                        <Condition Binding="{Binding HasManualTasks}" Value="False"/>
+                                    </MultiDataTrigger.Conditions>
                                     <Setter Property="Background" Value="#FFF1F2"/>
-                                </DataTrigger>
+                                </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
                     </TabItem.Resources>
@@ -584,11 +605,31 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Border Style="{StaticResource CalendarDayCellStyle}" x:Name="DayCellBorder">
+                                                <Border.InputBindings>
+                                                    <MouseBinding Gesture="LeftClick" Command="{Binding DataContext.NavigateToManualTasksFromCalendarCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
+                                                </Border.InputBindings>
                                                 <Grid>
                                                     <Grid.RowDefinitions>
                                                         <RowDefinition Height="Auto"/>
                                                         <RowDefinition Height="*"/>
                                                     </Grid.RowDefinitions>
+
+                                                    <!-- Leave duration indicators (left edge overlay) -->
+                                                    <Grid Grid.RowSpan="2" Width="4" HorizontalAlignment="Left" Margin="1,4,0,4">
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="*"/>
+                                                            <RowDefinition Height="*"/>
+                                                        </Grid.RowDefinitions>
+                                                        <Border Grid.RowSpan="2"
+                                                                Background="{StaticResource LeaveIndicatorBrush}"
+                                                                Visibility="{Binding HasFullDayLeave, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                                        <Border Grid.Row="0"
+                                                                Background="{StaticResource LeaveIndicatorBrush}"
+                                                                Visibility="{Binding HasMorningHalfLeave, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                                        <Border Grid.Row="1"
+                                                                Background="{StaticResource LeaveIndicatorBrush}"
+                                                                Visibility="{Binding HasAfternoonHalfLeave, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                                    </Grid>
 
                                                     <!-- Date Number (only for regular days) -->
                                                     <TextBlock Grid.Row="0" Text="{Binding Date, StringFormat={}{0:dd}}"
@@ -1028,13 +1069,14 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
-                                    <TextBox Grid.Column="0" Style="{StaticResource WatermarkTextBoxStyle}" Margin="0,0,6,0" Tag="HH"
+                                    <TextBox Grid.Column="0" Style="{StaticResource WatermarkTextBoxStyle}" Margin="0,0,6,0" Tag="Hours"
                                              Text="{Binding ManualHours, UpdateSourceTrigger=PropertyChanged}"/>
-                                    <TextBox Grid.Column="1" Style="{StaticResource WatermarkTextBoxStyle}" Margin="0,0,6,0" Tag="MM"
+                                    <TextBox Grid.Column="1" Style="{StaticResource WatermarkTextBoxStyle}" Margin="0,0,6,0" Tag="Minutes"
                                              Text="{Binding ManualMinutes, UpdateSourceTrigger=PropertyChanged}"/>
-                                    <TextBox Grid.Column="2" Style="{StaticResource WatermarkTextBoxStyle}" Tag="SS"
+                                    <TextBox Grid.Column="2" Style="{StaticResource WatermarkTextBoxStyle}" Tag="Seconds"
                                              Text="{Binding ManualSeconds, UpdateSourceTrigger=PropertyChanged}"/>
 
                                     <Button Grid.Column="3" Margin="6,0,0,0" Style="{StaticResource IconOnlyButtonStyle}"
@@ -1044,6 +1086,12 @@
                                                    FontSize="18"
                                                    HorizontalAlignment="Center"
                                                    VerticalAlignment="Center"/>
+                                    </Button>
+                                    <Button Grid.Column="4" Margin="6,0,0,0" Style="{StaticResource IconOnlyButtonStyle}"
+                                            Command="{Binding CancelManualTaskEditCommand}" ToolTip="Cancel"
+                                            Visibility="{Binding IsManualEditMode, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="18"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </Button>
                                 </Grid>
 
@@ -1071,12 +1119,35 @@
                                     <RadioButton Content="Month" IsChecked="{Binding TimelineViewMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Month}"/>
                                 </StackPanel>
 
-                                <!-- Navigation Bar -->
+                                <!-- Navigation Bar with Dynamic Pickers -->
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
                                     <Button Command="{Binding NavigatePreviousCommand}" Style="{StaticResource IconOnlyButtonStyle}" Margin="0,0,8,0" ToolTip="Previous">
                                         <TextBlock Text="&#xE72B;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
                                     </Button>
-                                    <TextBlock Text="{Binding PeriodLabelFormatted}" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0" MinWidth="140" TextAlignment="Center"/>
+                                    
+                                    <!-- Date Picker for Date view -->
+                                    <DatePicker SelectedDate="{Binding TimelineCurrentDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                                                Width="140" Margin="0,0,8,0" VerticalAlignment="Center"
+                                                Visibility="{Binding TimelineViewMode, Converter={StaticResource EnumToVisibilityConverter}, ConverterParameter=Date}"/>
+                                    
+                                    <!-- Date Picker for Week view (select any day in week) -->
+                                    <DatePicker SelectedDate="{Binding TimelineCurrentDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                                                Width="140" Margin="0,0,8,0" VerticalAlignment="Center" ToolTip="Select any day in the week"
+                                                Visibility="{Binding TimelineViewMode, Converter={StaticResource EnumToVisibilityConverter}, ConverterParameter=Week}"/>
+                                    
+                                    <!-- Month + Year Pickers for Month view -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,8,0" VerticalAlignment="Center"
+                                                Visibility="{Binding TimelineViewMode, Converter={StaticResource EnumToVisibilityConverter}, ConverterParameter=Month}">
+                                        <ComboBox ItemsSource="{Binding Months}" SelectedItem="{Binding SelectedMonth}" 
+                                                  Width="100" Margin="0,0,6,0"/>
+                                        <ComboBox ItemsSource="{Binding Years}" SelectedItem="{Binding SelectedYear}" 
+                                                  Width="70"/>
+                                    </StackPanel>
+                                    
+                                    <!-- Period Label (shown for Week view) -->
+                                    <TextBlock Text="{Binding PeriodLabelFormatted}" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0" MinWidth="140" TextAlignment="Center"
+                                               Visibility="{Binding TimelineViewMode, Converter={StaticResource EnumToVisibilityConverter}, ConverterParameter=Week}"/>
+                                    
                                     <Button Command="{Binding NavigateNextCommand}" Style="{StaticResource IconOnlyButtonStyle}" ToolTip="Next">
                                         <TextBlock Text="&#xE72A;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
                                     </Button>
@@ -1139,7 +1210,7 @@
                                     <DataGridTemplateColumn Width="72" MinWidth="72" CanUserSort="False">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <Button Margin="2,0" CommandParameter="{Binding}" Command="{Binding DataContext.DeleteManualTaskRowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" ToolTip="Delete" Focusable="False">
+                                                <Button Margin="2,0" CommandParameter="{Binding}" ToolTip="Delete" Focusable="False" PreviewMouseLeftButtonDown="DeleteButton_PreviewMouseLeftButtonDown">
                                                     <Button.Style>
                                                         <Style TargetType="Button" BasedOn="{StaticResource IconOnlyButtonStyle}"/>
                                                     </Button.Style>
@@ -1208,8 +1279,8 @@
                                                                         <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
                                                                     </Button>
                                                                     <Button Grid.Column="3" Style="{StaticResource IconOnlyButtonStyle}" 
-                                                                            Command="{Binding DataContext.DeleteManualTaskRowCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                            CommandParameter="{Binding}" Margin="4,0,0,0" ToolTip="Delete" Focusable="False">
+                                                                            CommandParameter="{Binding}" Margin="4,0,0,0" ToolTip="Delete" Focusable="False"
+                                                                            PreviewMouseLeftButtonDown="DeleteButton_PreviewMouseLeftButtonDown">
                                                                         <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
                                                                     </Button>
                                                                 </Grid>
@@ -1227,7 +1298,151 @@
                                 <TextBlock Text="No manual tasks for this date" 
                                            HorizontalAlignment="Center" VerticalAlignment="Center"
                                            Foreground="#9CA3AF" FontSize="14"
-                                           Visibility="{Binding TimelineItems.Count, Converter={StaticResource ZeroToVisibilityConverter}}"/>
+                                           Visibility="{Binding ShowDateViewEmptyState, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                                <!-- Empty State for Week/Month Mode -->
+                                <TextBlock Text="No manual tasks for this period" 
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="#9CA3AF" FontSize="14"
+                                           Visibility="{Binding ShowTimelineViewEmptyState, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </TabItem>
+
+                <!-- Leaves Tab -->
+                <TabItem Header="Leaves" Style="{StaticResource UIATabItemStyle}">
+                    <TabItem.Resources>
+                        <Style x:Key="LeaveCalendarDayCellStyle" TargetType="Border">
+                            <Setter Property="Background" Value="White"/>
+                            <Setter Property="BorderBrush" Value="#E5E7EB"/>
+                            <Setter Property="BorderThickness" Value="1"/>
+                            <Setter Property="CornerRadius" Value="4"/>
+                            <Setter Property="Padding" Value="6"/>
+                            <Setter Property="Margin" Value="2"/>
+                            <Setter Property="MinHeight" Value="72"/>
+                            <Setter Property="MinWidth" Value="90"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasLeave}" Value="True">
+                                    <Setter Property="Background" Value="{StaticResource LeaveCalendarHighlightBrush}"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource LeaveCalendarHighlightBorderBrush}"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsCurrentMonth}" Value="False">
+                                    <Setter Property="Opacity" Value="0.35"/>
+                                </DataTrigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="BorderBrush" Value="#D1D5DB"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TabItem.Resources>
+                    <Grid Margin="0,10,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Month navigation -->
+                        <Border Grid.Row="0" Style="{StaticResource CardStyle}" Margin="0,0,0,10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Leaves" Style="{StaticResource SectionHeaderTextStyle}" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button Command="{Binding NavigateLeavePreviousMonthCommand}" Style="{StaticResource IconOnlyButtonStyle}" Margin="0,0,8,0" ToolTip="Previous month">
+                                        <TextBlock Text="&#xE72B;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                    </Button>
+                                    <controls:MonthYearPicker SelectedMonthYear="{Binding LeaveSelectedMonthYear, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
+                                    <Button Command="{Binding NavigateLeaveNextMonthCommand}" Style="{StaticResource IconOnlyButtonStyle}" ToolTip="Next month">
+                                        <TextBlock Text="&#xE72A;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Leave entry form -->
+                        <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,0,0,10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                    <TextBlock Text="Date" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,0,4"/>
+                                    <DatePicker SelectedDate="{Binding LeaveFormDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="140"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                                    <TextBlock Text="Duration" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,0,4"/>
+                                    <ComboBox ItemsSource="{Binding LeaveDurationChoices}" DisplayMemberPath="Label"
+                                              SelectedValuePath="Value" SelectedValue="{Binding LeaveFormDuration, Mode=TwoWay}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Margin="0,0,12,0">
+                                    <TextBlock Text="Type" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,0,4"/>
+                                    <ComboBox ItemsSource="{Binding LeaveTypeChoices}" DisplayMemberPath="Label"
+                                              SelectedValuePath="Value" SelectedValue="{Binding LeaveFormType, Mode=TwoWay}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Bottom">
+                                    <Button Style="{StaticResource IconOnlyButtonStyle}" Command="{Binding SaveLeaveCommand}" ToolTip="{Binding LeaveFormPrimaryTooltip}" Margin="0,0,6,0">
+                                        <TextBlock Text="{Binding LeaveFormPrimaryGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="18"/>
+                                    </Button>
+                                    <Button Style="{StaticResource IconOnlyButtonStyle}" Command="{Binding DeleteLeaveCommand}" ToolTip="Delete" Margin="0,0,6,0">
+                                        <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="18"/>
+                                    </Button>
+                                    <Button Style="{StaticResource IconOnlyButtonStyle}" Command="{Binding CancelLeaveEditCommand}" ToolTip="Cancel"
+                                            Visibility="{Binding IsLeaveEditMode, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="18"/>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Leaves calendar -->
+                        <Border Grid.Row="2" Style="{StaticResource CardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <UniformGrid Grid.Row="0" Columns="7" Margin="0,0,0,8">
+                                    <TextBlock Text="Sun" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                    <TextBlock Text="Mon" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                    <TextBlock Text="Tue" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                    <TextBlock Text="Wed" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                    <TextBlock Text="Thu" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                    <TextBlock Text="Fri" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                    <TextBlock Text="Sat" HorizontalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource SecondaryTextStyle}"/>
+                                </UniformGrid>
+                                <ItemsControl Grid.Row="1" ItemsSource="{Binding LeaveCalendarDays}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Columns="7"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource LeaveCalendarDayCellStyle}">
+                                                <Border.InputBindings>
+                                                    <MouseBinding Gesture="LeftClick" Command="{Binding DataContext.SelectLeaveCalendarDayCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
+                                                </Border.InputBindings>
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Date, StringFormat={}{0:dd}}" FontWeight="SemiBold" HorizontalAlignment="Left"/>
+                                                    <TextBlock Text="{Binding LeaveSummaryText}" Style="{StaticResource SecondaryTextStyle}" FontSize="11"
+                                                               TextWrapping="Wrap" Margin="0,4,0,0"
+                                                               Visibility="{Binding HasLeave, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </Grid>
                         </Border>
                     </Grid>

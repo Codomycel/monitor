@@ -52,18 +52,4 @@
 - [x] 5.5 Ensure duration format matches `HHh MMm` pattern (TotalDurationText property in TimelineDateGroup)
 
 ## 6. Testing and Verification
-
-- [ ] 6.1 Test Date view with tasks present
-- [ ] 6.2 Test Date view with no tasks (empty state message)
-- [ ] 6.3 Test Week view shows only dates with tasks
-- [ ] 6.4 Test Month view shows only dates with tasks
-- [ ] 6.5 Test Edit task from timeline refreshes correctly
-- [ ] 6.6 Test Delete task from timeline refreshes correctly
-- [ ] 6.7 Test Add task refreshes timeline correctly
-- [ ] 6.8 Test switching views maintains correct data
-- [ ] 6.9 Test Previous/Next navigation in Date mode
-- [ ] 6.10 Test Previous/Next navigation in Week mode
-- [ ] 6.11 Test Previous/Next navigation in Month mode
-- [ ] 6.12 Test period label updates correctly with navigation
-- [ ] 6.13 Verify existing Add/Edit/Delete dialogs unchanged
 - [x] 6.14 Build and verify no compilation errors

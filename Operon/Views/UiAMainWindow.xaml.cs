@@ -310,5 +310,22 @@ namespace SystemActivityTracker.Views
         }
 
         #endregion
+
+        /// <summary>
+        /// Handles Delete button PreviewMouseLeftButtonDown to execute delete command without selecting the row.
+        /// This prevents the deleted row's values from loading into the edit form.
+        /// </summary>
+        private void DeleteButton_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is System.Windows.Controls.Button button && button.CommandParameter is SystemActivityTracker.Models.ManualTaskEntry entry)
+            {
+                if (DataContext is MainWindowViewModel viewModel)
+                {
+                    viewModel.DeleteManualTaskRowCommand.Execute(entry);
+                }
+            }
+            // Mark event as handled to prevent DataGrid row selection
+            e.Handled = true;
+        }
     }
 }

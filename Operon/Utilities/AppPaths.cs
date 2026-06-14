@@ -46,6 +46,12 @@ namespace SystemActivityTracker.Utilities
             return Path.Combine(GetAppFolder(), fileName);
         }
 
+        public static string GetLeavesPath(int year, int month)
+        {
+            string fileName = $"leaves-{year:0000}-{month:00}.json";
+            return Path.Combine(GetAppFolder(), fileName);
+        }
+
         public static string GetActivityLogCsvPath(DateTime date)
         {
             string fileName = $"activity-log-{date:yyyy-MM-dd}.csv";
