@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Resolve release version
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $semver = $tag -replace '^v', ''
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "semver=$semver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "zip_name=Operon-$tag-portable-win-x64.zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Clean publish output
+        shell: pwsh
+        run: |
+          if (Test-Path ./publish) {
+            Remove-Item ./publish -Recurse -Force
+          }
+          New-Item -ItemType Directory -Path ./publish | Out-Null
+
+      - name: Restore dependencies
+        run: dotnet restore .\Operon\Operon.csproj -r win-x64
+
+      - name: Publish portable EXE (win-x64)
+        shell: pwsh
+        run: |
+          dotnet publish .\Operon\Operon.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            --no-restore `
+            /p:PublishSingleFile=true `
+            /p:IncludeNativeLibrariesForSelfExtract=true `
+            /p:DebugType=None `
+            /p:DebugSymbols=false `
+            /p:Version=${{ steps.version.outputs.semver }} `
+            /p:AssemblyVersion=${{ steps.version.outputs.semver }} `
+            /p:FileVersion=${{ steps.version.outputs.semver }} `
+            -o .\publish
+
+      - name: Verify publish output
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem .\publish -File
+          if ($files.Count -ne 1 -or $files[0].Name -ne 'Operon.exe') {
+            Write-Error "Expected a single Operon.exe in publish output, found: $($files.Name -join ', ')"
+          }
+          Write-Host "Published: $($files[0].FullName) ($([math]::Round($files[0].Length / 1MB, 2)) MB)"
+
+      - name: Create release ZIP
+        shell: pwsh
+        run: |
+          $zip = "${{ steps.version.outputs.zip_name }}"
+          if (Test-Path $zip) {
+            Remove-Item $zip -Force
+          }
+          Compress-Archive -Path .\publish\Operon.exe -DestinationPath $zip -CompressionLevel Optimal
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Operon ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: ${{ steps.version.outputs.zip_name }}

@@ -220,6 +220,10 @@ namespace SystemActivityTracker.ViewModels
         private readonly DispatcherTimer _runningTimer = new DispatcherTimer();
         private int _lastDisplayedRunSecond = -1;
         private string _headerRunningTimerText = "00:00:00";
+        private string _headerTimerHours = "00";
+        private string _headerTimerMinutes = "00";
+        private string _headerTimerSeconds = "00";
+        private bool _isHeaderTimerLive;
         private TimeSpan _headerActiveBase = TimeSpan.Zero;
         private DateTime? _headerActiveStartLocal;
         private DateTime? _headerActiveLastRecordStartLocal;
@@ -255,8 +259,7 @@ namespace SystemActivityTracker.ViewModels
             _runningTimer.Interval = TimeSpan.FromMilliseconds(100);
             _runningTimer.Tick += (_, __) =>
             {
-                TickRunningTimer();
-                TickHeaderActiveTimer();
+                RefreshHeaderActiveTimer();
             };
             StartCommand = new RelayCommand(_ => StartTracking());
 
@@ -343,8 +346,10 @@ namespace SystemActivityTracker.ViewModels
             CrashLogRetentionDays = settings.CrashLogRetentionDays;
             CrashLogMaxSizeMB = settings.CrashLogMaxSizeMB;
 
-            // Tracking starts in Stopped state - user must press Start button to begin tracking
-            // Removed: if (settings.AutoStartTrackingOnLaunch) { StartTracking(); }
+            if (settings.AutoStartTrackingOnLaunch)
+            {
+                StartTracking();
+            }
 
             LoadWeeklySummary();
 
@@ -481,7 +486,7 @@ namespace SystemActivityTracker.ViewModels
             _headerActiveLastRecordStartLocal = null;
 
             _lastDisplayedActiveSecond = -1;
-            TickHeaderActiveTimer();
+            RefreshHeaderActiveTimer();
         }
 
         public string HeaderRunningTimerText
@@ -492,6 +497,58 @@ namespace SystemActivityTracker.ViewModels
                 if (!string.Equals(_headerRunningTimerText, value, StringComparison.Ordinal))
                 {
                     _headerRunningTimerText = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string HeaderTimerHours
+        {
+            get => _headerTimerHours;
+            private set
+            {
+                if (!string.Equals(_headerTimerHours, value, StringComparison.Ordinal))
+                {
+                    _headerTimerHours = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string HeaderTimerMinutes
+        {
+            get => _headerTimerMinutes;
+            private set
+            {
+                if (!string.Equals(_headerTimerMinutes, value, StringComparison.Ordinal))
+                {
+                    _headerTimerMinutes = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string HeaderTimerSeconds
+        {
+            get => _headerTimerSeconds;
+            private set
+            {
+                if (!string.Equals(_headerTimerSeconds, value, StringComparison.Ordinal))
+                {
+                    _headerTimerSeconds = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool IsHeaderTimerLive
+        {
+            get => _isHeaderTimerLive;
+            private set
+            {
+                if (_isHeaderTimerLive != value)
+                {
+                    _isHeaderTimerLive = value;
                     OnPropertyChanged();
                 }
             }
@@ -519,7 +576,7 @@ namespace SystemActivityTracker.ViewModels
 
             _runStartUtc = DateTime.UtcNow;
             _lastDisplayedRunSecond = -1;
-            TickRunningTimer();
+            RefreshHeaderActiveTimer();
             _runningTimer.Start();
         }
 
@@ -532,11 +589,10 @@ namespace SystemActivityTracker.ViewModels
             }
 
             _runningTimer.Stop();
-            TickRunningTimer();
-            TickHeaderActiveTimer();
+            RefreshHeaderActiveTimer();
         }
 
-        private void TickRunningTimer()
+        private void RefreshHeaderActiveTimer()
         {
             DateTime now = DateTime.Now;
 
@@ -577,20 +633,17 @@ namespace SystemActivityTracker.ViewModels
                     _headerActiveLastRecordStartLocal = snapshot.CurrentRecordStartTime.Value;
                 }
             }
-            else
+            else if (_headerActiveStartLocal.HasValue)
             {
-                if (_headerActiveStartLocal.HasValue)
+                var delta = now - _headerActiveStartLocal.Value;
+                if (delta < TimeSpan.Zero)
                 {
-                    var delta = now - _headerActiveStartLocal.Value;
-                    if (delta < TimeSpan.Zero)
-                    {
-                        delta = TimeSpan.Zero;
-                    }
-
-                    _headerActiveBase += delta;
-                    _headerActiveStartLocal = null;
-                    _headerActiveLastRecordStartLocal = null;
+                    delta = TimeSpan.Zero;
                 }
+
+                _headerActiveBase += delta;
+                _headerActiveStartLocal = null;
+                _headerActiveLastRecordStartLocal = null;
             }
 
             var total = _headerActiveBase;
@@ -610,18 +663,27 @@ namespace SystemActivityTracker.ViewModels
                 total = TimeSpan.Zero;
             }
 
+            IsHeaderTimerLive = isActive;
+
             int wholeSeconds = (int)total.TotalSeconds;
-            if (wholeSeconds == _lastDisplayedRunSecond)
+            if (wholeSeconds == _lastDisplayedActiveSecond)
             {
                 return;
             }
 
+            _lastDisplayedActiveSecond = wholeSeconds;
             _lastDisplayedRunSecond = wholeSeconds;
 
             int hours = (int)total.TotalHours;
             int minutes = total.Minutes;
             int seconds = total.Seconds;
-            HeaderRunningTimerText = GetString("HeaderActivePrefix", "Active : ") + string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00}", hours, minutes, seconds);
+            var formatted = string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00}", hours, minutes, seconds);
+
+            HeaderRunningTimerText = formatted;
+            HeaderActiveTimerText = formatted;
+            HeaderTimerHours = string.Format(CultureInfo.InvariantCulture, "{0:00}", hours);
+            HeaderTimerMinutes = string.Format(CultureInfo.InvariantCulture, "{0:00}", minutes);
+            HeaderTimerSeconds = string.Format(CultureInfo.InvariantCulture, "{0:00}", seconds);
         }
 
         private void SyncHeaderActiveBaseFromSummary()
@@ -630,7 +692,7 @@ namespace SystemActivityTracker.ViewModels
             _headerActiveStartLocal = null;
             _headerActiveLastRecordStartLocal = null;
             _lastDisplayedActiveSecond = -1;
-            TickHeaderActiveTimer();
+            RefreshHeaderActiveTimer();
         }
 
         private TimeSpan ComputeActiveTotalForDate(DateTime date)
@@ -651,94 +713,6 @@ namespace SystemActivityTracker.ViewModels
             }
 
             return totalActive;
-        }
-
-        private void TickHeaderActiveTimer()
-        {
-            DateTime now = DateTime.Now;
-
-            TrackingService.TrackingSnapshot snapshot = default;
-            bool hasSnapshot = _trackingService != null && _trackingService.TryGetSnapshot(out snapshot);
-            bool isActive = hasSnapshot && !snapshot.IsLocked && !snapshot.IsIdle;
-
-            if (isActive)
-            {
-                if (_headerActiveStartLocal == null)
-                {
-                    var start = snapshot.CurrentRecordStartTime ?? now;
-                    if (start > now)
-                    {
-                        start = now;
-                    }
-
-                    _headerActiveStartLocal = start;
-                    _headerActiveLastRecordStartLocal = snapshot.CurrentRecordStartTime;
-                }
-                else if (snapshot.CurrentRecordStartTime.HasValue && _headerActiveLastRecordStartLocal.HasValue && snapshot.CurrentRecordStartTime.Value != _headerActiveLastRecordStartLocal.Value)
-                {
-                    var delta = now - _headerActiveStartLocal.Value;
-                    if (delta < TimeSpan.Zero)
-                    {
-                        delta = TimeSpan.Zero;
-                    }
-
-                    _headerActiveBase += delta;
-
-                    var start = snapshot.CurrentRecordStartTime.Value;
-                    if (start > now)
-                    {
-                        start = now;
-                    }
-
-                    _headerActiveStartLocal = start;
-                    _headerActiveLastRecordStartLocal = snapshot.CurrentRecordStartTime.Value;
-                }
-            }
-            else
-            {
-                if (_headerActiveStartLocal.HasValue)
-                {
-                    var delta = now - _headerActiveStartLocal.Value;
-                    if (delta < TimeSpan.Zero)
-                    {
-                        delta = TimeSpan.Zero;
-                    }
-
-                    _headerActiveBase += delta;
-                    _headerActiveStartLocal = null;
-                    _headerActiveLastRecordStartLocal = null;
-                }
-            }
-
-            var total = _headerActiveBase;
-            if (_headerActiveStartLocal.HasValue)
-            {
-                var delta = now - _headerActiveStartLocal.Value;
-                if (delta < TimeSpan.Zero)
-                {
-                    delta = TimeSpan.Zero;
-                }
-
-                total += delta;
-            }
-
-            if (total < TimeSpan.Zero)
-            {
-                total = TimeSpan.Zero;
-            }
-
-            int wholeSeconds = (int)total.TotalSeconds;
-            if (wholeSeconds == _lastDisplayedActiveSecond)
-            {
-                return;
-            }
-
-            _lastDisplayedActiveSecond = wholeSeconds;
-
-            int hours = (int)total.TotalHours;
-            int minutes = total.Minutes;
-            int seconds = total.Seconds;
-            HeaderActiveTimerText = GetString("HeaderTotalActivePrefix", "Total active - ") + string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00}", hours, minutes, seconds);
         }
 
         public string TodayText { get; }

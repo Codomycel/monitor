@@ -31,10 +31,16 @@
         </Grid.RowDefinitions>
 
         <DockPanel Grid.Row="0" LastChildFill="False" Background="{StaticResource HeaderBackgroundBrush}" Margin="0,0,0,6">
-            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Margin="10,8" VerticalAlignment="Center">
+            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Margin="8,8" VerticalAlignment="Center">
+                <Button Style="{StaticResource IconOnlyButtonStyle}"
+                        ToolTip="Exit"
+                        Click="ExitButton_Click"
+                        Margin="0,0,8,0">
+                    <TextBlock Text="&#xE7E8;" FontFamily="Segoe MDL2 Assets" FontSize="16"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Button>
                 <TextBlock Text="{DynamicResource AppName}" Style="{StaticResource SubHeaderTextStyle}" VerticalAlignment="Center"/>
-                <TextBlock Text="  |  " Style="{StaticResource SecondaryTextStyle}" VerticalAlignment="Center" Margin="6,0"/>
-                <TextBlock Text="{Binding HeaderRunningTimerText}" FontFamily="Consolas" VerticalAlignment="Center"/>
+                <controls:HeaderWatchTimer Margin="8,0,0,0"/>
             </StackPanel>
 
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="10,8" VerticalAlignment="Center" HorizontalAlignment="Right">
@@ -43,9 +49,6 @@
                     <ComboBoxItem Content="UI A" Tag="UIA"/>
                     <ComboBoxItem Content="UI B" Tag="UIB"/>
                 </ComboBox>
-
-                <Button Content="Exit" Style="{StaticResource SecondaryButtonStyle}" Margin="10,0,0,0"
-                        Click="ExitButton_Click"/>
             </StackPanel>
         </DockPanel>
 
