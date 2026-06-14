@@ -22,6 +22,9 @@
         <conv:Subtract10Converter x:Key="Subtract10Converter"/>
         <conv:Subtract8Converter x:Key="Subtract8Converter"/>
         <conv:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
+        <conv:EnumToBoolConverter x:Key="EnumToBoolConverter"/>
+        <conv:EnumToVisibilityConverter x:Key="EnumToVisibilityConverter"/>
+        <conv:TimelineViewModeToVisibilityConverter x:Key="TimelineViewModeToVisibilityConverter"/>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
     </Window.Resources>
 
@@ -993,6 +996,7 @@
                     <Grid Margin="0,10,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
@@ -1047,17 +1051,53 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Manual Tasks Data Grid -->
-                        <Border Grid.Row="1" Background="White" CornerRadius="10" Padding="12" BorderBrush="#E5E7EB" BorderThickness="1">
+                        <!-- Timeline View Selector and Navigation -->
+                        <Border Grid.Row="1" Background="White" CornerRadius="10" Padding="12" BorderBrush="#E5E7EB" BorderThickness="1" Margin="0,0,0,12">
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="8" ShadowDepth="1" Opacity="0.12"/>
                             </Border.Effect>
 
-                            <DataGrid ItemsSource="{Binding ManualTasks}" SelectedItem="{Binding SelectedManualTask, Mode=TwoWay}"
-                                      Style="{StaticResource UIADataGridStyle}"
-                                      VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
-                                      ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                      CanUserSortColumns="True" IsReadOnly="True">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- View Mode Selector -->
+                                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                    <RadioButton Content="Date" IsChecked="{Binding TimelineViewMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Date}" Margin="0,0,12,0"/>
+                                    <RadioButton Content="Week" IsChecked="{Binding TimelineViewMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Week}" Margin="0,0,12,0"/>
+                                    <RadioButton Content="Month" IsChecked="{Binding TimelineViewMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Month}"/>
+                                </StackPanel>
+
+                                <!-- Navigation Bar -->
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button Command="{Binding NavigatePreviousCommand}" Style="{StaticResource IconOnlyButtonStyle}" Margin="0,0,8,0" ToolTip="Previous">
+                                        <TextBlock Text="&#xE72B;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                    </Button>
+                                    <TextBlock Text="{Binding PeriodLabelFormatted}" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0" MinWidth="140" TextAlignment="Center"/>
+                                    <Button Command="{Binding NavigateNextCommand}" Style="{StaticResource IconOnlyButtonStyle}" ToolTip="Next">
+                                        <TextBlock Text="&#xE72A;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Manual Tasks Content (Timeline or DataGrid) -->
+                        <Border Grid.Row="2" Background="White" CornerRadius="10" Padding="12" BorderBrush="#E5E7EB" BorderThickness="1">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="8" ShadowDepth="1" Opacity="0.12"/>
+                            </Border.Effect>
+
+                            <Grid>
+                                <!-- Date Mode: Original DataGrid -->
+                                <DataGrid ItemsSource="{Binding ManualTasks}" SelectedItem="{Binding SelectedManualTask, Mode=TwoWay}"
+                                          Style="{StaticResource UIADataGridStyle}"
+                                          VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
+                                          ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                          CanUserSortColumns="True" IsReadOnly="True"
+                                          Visibility="{Binding TimelineViewMode, Converter={StaticResource EnumToVisibilityConverter}, ConverterParameter=Date}">
                                 <DataGrid.RowHeight>40</DataGrid.RowHeight>
                                 <DataGrid.ColumnHeaderStyle>
                                     <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource UIADataGridColumnHeaderStyle}"/>
@@ -1072,7 +1112,7 @@
                                     <DataGridTemplateColumn Width="72" MinWidth="72" CanUserSort="False">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <Button Margin="2,0" CommandParameter="{Binding}">
+                                                <Button Margin="2,0" CommandParameter="{Binding}" Focusable="False">
                                                     <Button.Style>
                                                         <Style TargetType="Button" BasedOn="{StaticResource IconOnlyButtonStyle}">
                                                             <Setter Property="ToolTip" Value="Edit"/>
@@ -1099,11 +1139,11 @@
                                     <DataGridTemplateColumn Width="72" MinWidth="72" CanUserSort="False">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <Button Margin="2,0" CommandParameter="{Binding}" Command="{Binding DataContext.DeleteManualTaskCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" ToolTip="Delete">
+                                                <Button Margin="2,0" CommandParameter="{Binding}" Command="{Binding DataContext.DeleteManualTaskRowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" ToolTip="Delete" Focusable="False">
                                                     <Button.Style>
                                                         <Style TargetType="Button" BasedOn="{StaticResource IconOnlyButtonStyle}"/>
                                                     </Button.Style>
-                                                    <TextBlock Text="{Binding DataContext.DeleteManualTaskGlyph, RelativeSource={RelativeSource AncestorType=DataGrid}}" FontFamily="Segoe MDL2 Assets" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="{Binding DataContext.ManualDeleteGlyph, RelativeSource={RelativeSource AncestorType=DataGrid}}" FontFamily="Segoe MDL2 Assets" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                 </Button>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
@@ -1118,6 +1158,77 @@
                                     <DataGridTextColumn Header="Duration" Binding="{Binding DurationText, Mode=OneWay}" Width="1*" SortMemberPath="TotalSeconds"/>
                                 </DataGrid.Columns>
                             </DataGrid>
+
+                                <!-- Week/Month Mode: Timeline ItemsControl -->
+                            <ItemsControl ItemsSource="{Binding TimelineItems}" 
+                                          Visibility="{Binding TimelineViewMode, Converter={StaticResource TimelineViewModeToVisibilityConverter}}"
+                                          VirtualizingStackPanel.IsVirtualizing="True"
+                                          ScrollViewer.CanContentScroll="True">
+                                <ItemsControl.Template>
+                                    <ControlTemplate>
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                            <ItemsPresenter/>
+                                        </ScrollViewer>
+                                    </ControlTemplate>
+                                </ItemsControl.Template>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <!-- Date Group -->
+                                        <Border BorderBrush="#E5E7EB" BorderThickness="0,0,0,1" Padding="0,12" Margin="0,0,0,8">
+                                            <StackPanel>
+                                                <!-- Date Header -->
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                    <TextBlock Text="{Binding Date, StringFormat='{}{0:ddd, MMM d}'}" 
+                                                               FontWeight="SemiBold" FontSize="14" Foreground="#374151"/>
+                                                    <TextBlock Text=" - " Foreground="#9CA3AF" Margin="4,0"/>
+                                                    <TextBlock Text="{Binding TotalDurationText}" 
+                                                               FontWeight="SemiBold" FontSize="14" Foreground="#059669"/>
+                                                </StackPanel>
+                                                
+                                                <!-- Task Rows -->
+                                                <ItemsControl ItemsSource="{Binding Tasks}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Background="#F9FAFB" CornerRadius="6" Padding="12,8" Margin="0,0,0,6">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    
+                                                                    <TextBlock Grid.Column="0" Text="{Binding TaskName}" 
+                                                                               TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                                                    <TextBlock Grid.Column="1" Text="{Binding DurationText}" 
+                                                                               Foreground="#6B7280" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                                                                    <Button Grid.Column="2" Style="{StaticResource IconOnlyButtonStyle}" 
+                                                                            Command="{Binding DataContext.BeginEditManualTaskCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                            CommandParameter="{Binding}" Margin="8,0,0,0" ToolTip="Edit" Focusable="False">
+                                                                        <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                                    </Button>
+                                                                    <Button Grid.Column="3" Style="{StaticResource IconOnlyButtonStyle}" 
+                                                                            Command="{Binding DataContext.DeleteManualTaskRowCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                            CommandParameter="{Binding}" Margin="4,0,0,0" ToolTip="Delete" Focusable="False">
+                                                                        <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                                    </Button>
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                                <!-- Empty State for Date Mode -->
+                                <TextBlock Text="No manual tasks for this date" 
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="#9CA3AF" FontSize="14"
+                                           Visibility="{Binding TimelineItems.Count, Converter={StaticResource ZeroToVisibilityConverter}}"/>
+                            </Grid>
                         </Border>
                     </Grid>
                 </TabItem>

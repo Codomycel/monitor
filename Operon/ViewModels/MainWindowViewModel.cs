@@ -74,6 +74,23 @@ namespace SystemActivityTracker.ViewModels
         public string TotalActiveText => $"{(int)TotalActiveHours.TotalHours}h {TotalActiveHours.Minutes}m";
     }
 
+    // Timeline View Mode Enum
+    public enum TimelineViewMode
+    {
+        Date,
+        Week,
+        Month
+    }
+
+    // Timeline Date Group Model
+    public class TimelineDateGroup
+    {
+        public DateTime Date { get; set; }
+        public TimeSpan TotalDuration { get; set; }
+        public string TotalDurationText => $"{(int)TotalDuration.TotalHours}h {TotalDuration.Minutes}m";
+        public ObservableCollection<ManualTaskEntry> Tasks { get; set; } = new ObservableCollection<ManualTaskEntry>();
+    }
+
     public class MainWindowViewModel : INotifyPropertyChanged
     {
         private readonly TrackingService? _trackingService;
@@ -105,6 +122,11 @@ namespace SystemActivityTracker.ViewModels
         private int _selectedMonth = DateTime.Today.Month;
         private DateTime _manualTasksDate = DateTime.Today;
         private DateTime _weekStartDate;
+        
+        // Timeline-related fields
+        private TimelineViewMode _timelineViewMode = TimelineViewMode.Date;
+        private readonly ObservableCollection<TimelineDateGroup> _timelineItems = new ObservableCollection<TimelineDateGroup>();
+        private DateTime _timelineCurrentDate = DateTime.Today;
         private readonly ObservableCollection<DailySummary> _weeklySummaries = new ObservableCollection<DailySummary>();
         private readonly ObservableCollection<MonthlyAppUsageDto> _monthlyAppUsage = new ObservableCollection<MonthlyAppUsageDto>();
         private readonly ObservableCollection<CalendarDayItemBase> _monthlyCalendarDays = new ObservableCollection<CalendarDayItemBase>();
@@ -175,6 +197,11 @@ namespace SystemActivityTracker.ViewModels
             BeginEditManualTaskCommand = new RelayCommand(p => BeginEditManualTask(p as ManualTaskEntry), p => CanEditManualTasks() && !_isManualEditMode);
             CancelManualTaskEditCommand = new RelayCommand(_ => CancelManualTaskEdit(), _ => CanEditManualTasks() && _isManualEditMode);
             DeleteManualTaskRowCommand = new RelayCommand(p => DeleteManualTaskRow(p as ManualTaskEntry), p => CanEditManualTasks() && !_isManualEditMode);
+
+            // Timeline commands
+            RefreshTimelineCommand = new RelayCommand(_ => RefreshTimeline());
+            NavigatePreviousCommand = new RelayCommand(_ => NavigatePrevious());
+            NavigateNextCommand = new RelayCommand(_ => NavigateNext());
 
             SaveSettingsCommand = new RelayCommand(_ => SaveSettings());
             ClearCrashLogsCommand = new RelayCommand(_ => ClearCrashLogs());
@@ -818,6 +845,65 @@ namespace SystemActivityTracker.ViewModels
         public ICommand CancelManualTaskEditCommand { get; }
         public ICommand DeleteManualTaskRowCommand { get; }
 
+        // Timeline public properties
+        public TimelineViewMode TimelineViewMode
+        {
+            get => _timelineViewMode;
+            set
+            {
+                if (_timelineViewMode != value)
+                {
+                    _timelineViewMode = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(PeriodLabelFormatted));
+                    RefreshTimeline();
+                }
+            }
+        }
+
+        public ObservableCollection<TimelineDateGroup> TimelineItems => _timelineItems;
+
+        public DateTime TimelineCurrentDate
+        {
+            get => _timelineCurrentDate;
+            set
+            {
+                if (_timelineCurrentDate != value)
+                {
+                    _timelineCurrentDate = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(PeriodLabelFormatted));
+                    RefreshTimeline();
+                }
+            }
+        }
+
+        public string PeriodLabelFormatted
+        {
+            get
+            {
+                return TimelineViewMode switch
+                {
+                    TimelineViewMode.Date => TimelineCurrentDate.ToString("MMMM d, yyyy"),
+                    TimelineViewMode.Week => GetWeekLabel(TimelineCurrentDate),
+                    TimelineViewMode.Month => TimelineCurrentDate.ToString("MMMM yyyy"),
+                    _ => TimelineCurrentDate.ToString("MMMM d, yyyy")
+                };
+            }
+        }
+
+        private string GetWeekLabel(DateTime date)
+        {
+            var startOfWeek = StartOfWeek(date, DayOfWeek.Monday);
+            var endOfWeek = startOfWeek.AddDays(6);
+            return $"{startOfWeek:MMM d} - {endOfWeek:MMM d, yyyy}";
+        }
+
+        // Timeline commands
+        public ICommand RefreshTimelineCommand { get; }
+        public ICommand NavigatePreviousCommand { get; }
+        public ICommand NavigateNextCommand { get; }
+
         private void RefreshForSelectedDate()
         {
             if (_trackingService != null && _trackingService.IsRunning && SelectedDate.Date == DateTime.Today)
@@ -1190,6 +1276,8 @@ namespace SystemActivityTracker.ViewModels
                     _manualTasksDate = normalized;
                     OnPropertyChanged();
                     LoadManualTasksForSelectedDate();
+                    // Sync with timeline
+                    TimelineCurrentDate = normalized;
                 }
             }
         }
@@ -1602,7 +1690,127 @@ namespace SystemActivityTracker.ViewModels
                 OnPropertyChanged(nameof(MonthlyManualTasksText));
                 OnPropertyChanged(nameof(MonthlyTotalActiveText));
             }
+
+            // Refresh timeline if visible
+            RefreshTimeline();
         }
+
+        #region Timeline Methods
+
+        private void RefreshTimeline()
+        {
+            switch (TimelineViewMode)
+            {
+                case TimelineViewMode.Date:
+                    LoadTimelineForDate();
+                    break;
+                case TimelineViewMode.Week:
+                    LoadTimelineForWeek();
+                    break;
+                case TimelineViewMode.Month:
+                    LoadTimelineForMonth();
+                    break;
+            }
+        }
+
+        private void NavigatePrevious()
+        {
+            TimelineCurrentDate = TimelineViewMode switch
+            {
+                TimelineViewMode.Date => TimelineCurrentDate.AddDays(-1),
+                TimelineViewMode.Week => TimelineCurrentDate.AddDays(-7),
+                TimelineViewMode.Month => TimelineCurrentDate.AddMonths(-1),
+                _ => TimelineCurrentDate
+            };
+        }
+
+        private void NavigateNext()
+        {
+            TimelineCurrentDate = TimelineViewMode switch
+            {
+                TimelineViewMode.Date => TimelineCurrentDate.AddDays(1),
+                TimelineViewMode.Week => TimelineCurrentDate.AddDays(7),
+                TimelineViewMode.Month => TimelineCurrentDate.AddMonths(1),
+                _ => TimelineCurrentDate
+            };
+        }
+
+        private void LoadTimelineForDate()
+        {
+            _timelineItems.Clear();
+            var date = TimelineCurrentDate.Date;
+            var tasks = _manualTaskService.Load(date);
+            
+            if (tasks.Any())
+            {
+                var group = new TimelineDateGroup
+                {
+                    Date = date,
+                    TotalDuration = TimeSpan.FromSeconds(tasks.Sum(t => Math.Max(0, t.TotalSeconds)))
+                };
+                foreach (var task in tasks)
+                {
+                    group.Tasks.Add(task);
+                }
+                _timelineItems.Add(group);
+            }
+        }
+
+        private void LoadTimelineForWeek()
+        {
+            _timelineItems.Clear();
+            var startOfWeek = StartOfWeek(TimelineCurrentDate, DayOfWeek.Monday);
+            
+            for (int i = 0; i < 7; i++)
+            {
+                var date = startOfWeek.AddDays(i);
+                var tasks = _manualTaskService.Load(date);
+                
+                if (tasks.Any())
+                {
+                    var group = new TimelineDateGroup
+                    {
+                        Date = date,
+                        TotalDuration = TimeSpan.FromSeconds(tasks.Sum(t => Math.Max(0, t.TotalSeconds)))
+                    };
+                    foreach (var task in tasks)
+                    {
+                        group.Tasks.Add(task);
+                    }
+                    _timelineItems.Add(group);
+                }
+            }
+        }
+
+        private void LoadTimelineForMonth()
+        {
+            _timelineItems.Clear();
+            var year = TimelineCurrentDate.Year;
+            var month = TimelineCurrentDate.Month;
+            var daysInMonth = DateTime.DaysInMonth(year, month);
+            
+            for (int day = 1; day <= daysInMonth; day++)
+            {
+                var date = new DateTime(year, month, day);
+                var tasks = _manualTaskService.Load(date);
+                
+                if (tasks.Any())
+                {
+                    var group = new TimelineDateGroup
+                    {
+                        Date = date,
+                        TotalDuration = TimeSpan.FromSeconds(tasks.Sum(t => Math.Max(0, t.TotalSeconds)))
+                    };
+                    foreach (var task in tasks)
+                    {
+                        group.Tasks.Add(task);
+                    }
+                    _timelineItems.Add(group);
+                }
+            }
+        }
+
+        #endregion
 
         private static int ParseNonNegativeInt(string value)
         {
