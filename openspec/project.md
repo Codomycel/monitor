@@ -25,7 +25,108 @@ All data is stored locally. The application is private, offline-only, and does n
 
 ---
 
-## 3. Core Time Definitions
+## 3. Tech Stack
+
+- **Platform:** Windows only
+- **Framework:** WPF (.NET 8, `net8.0-windows`)
+- **Language:** C# with `<Nullable>enable</Nullable>` and `<ImplicitUsings>enable</ImplicitUsings>`
+- **Pattern:** MVVM (gradual adoption — not all logic is in ViewModels yet)
+- **DI container:** `Microsoft.Extensions.DependencyInjection` (8.0.0), wired in `App.xaml.cs`
+- **Charting:** `LiveCharts.Wpf` (0.9.7)
+- **Storage:** CSV (activity logs) + JSON (settings, manual tasks, close-event logs)
+- **Serialization:** `System.Text.Json` (built-in, no Newtonsoft)
+- **Solution file:** `Operon.sln` → project `Operon/Operon.csproj`
+- **Assembly name:** `Operon`, **Root namespace:** `SystemActivityTracker`
+
+---
+
+## 4. Project Structure
+
+```
+Operon/
+├── App.xaml / App.xaml.cs          — startup, DI wiring, single-instance, session events
+├── Models/                          — plain data models
+│   ├── ActivityRecord.cs            — in-flight tracking record (StartTime, EndTime, ProcessName, IsLocked, IsIdle)
+│   ├── AppSettings.cs               — user-configurable settings (idle threshold, poll interval, UI mode, etc.)
+│   ├── AppUsageSummary.cs           — per-app aggregation
+│   ├── DailySummary.cs              — daily rollup with TotalActiveDuration = Active + Manual
+│   ├── ManualTaskEntry.cs           — INotifyPropertyChanged model for manual tasks
+│   └── MonthlyAppUsageDto.cs        — monthly per-app DTO
+├── Services/
+│   ├── Abstractions/                — interfaces & value types used across layers
+│   │   ├── ActivityLogEntry.cs      — readonly record struct (CSV row shape)
+│   │   ├── IActiveWindowProvider.cs
+│   │   ├── IActivityLogReader.cs
+│   │   ├── IActivityLogWriter.cs
+│   │   ├── IClock.cs
+│   │   ├── ICrashLogReader.cs
+│   │   └── IIdleTimeProvider.cs
+│   ├── System/                      — platform implementations
+│   │   ├── SystemActiveWindowProvider.cs
+│   │   ├── SystemClock.cs
+│   │   └── SystemIdleTimeProvider.cs
+│   ├── ActivityLogReader.cs         — reads activity-log-YYYY-MM-DD.csv
+│   ├── ActivityLogWriter.cs         — appends to CSV
+│   ├── CloseTrackingService.cs      — crash/hang detection, heartbeat timers, close-event JSONL
+│   ├── CloseReason.cs               — enum for shutdown classification
+│   ├── CrashLogReader.cs            — reads close-event JSONL logs
+│   ├── IdleTimeHelper.cs            — Win32 GetLastInputInfo wrapper
+│   ├── ManualTaskService.cs         — load/save manual-tasks-YYYY-MM-DD.json
+│   ├── SessionStateService.cs       — subscribes to SystemEvents.SessionSwitch
+│   ├── SettingsService.cs           — load/save settings.json via JsonFile utility
+│   └── TrackingService.cs           — core polling loop (System.Timers.Timer), state machine
+├── ViewModels/
+│   ├── ActivityChartViewModel.cs    — chart data preparation
+│   ├── LastCrashViewModel.cs        — crash/last-run display
+│   └── MainWindowViewModel.cs       — primary VM (largest file, ~73 KB)
+├── Views/
+│   ├── UiAMainWindow.xaml/.cs       — default UI skin (UIA)
+│   ├── UiBMainWindow.xaml/.cs       — alternate UI skin (UIB)
+│   └── Shells/                      — shell/host windows
+├── Controls/
+│   ├── ActivityChart.xaml/.cs       — reusable LiveCharts control
+│   └── MonthYearPicker.xaml/.cs     — custom month/year picker
+├── Converters/
+│   ├── BooleanToLegendLocationConverter.cs
+│   ├── InverseBooleanToVisibilityConverter.cs
+│   └── SelectedDayChartConverters.cs
+├── Styles/
+│   ├── Styles.xaml                  — main resource dictionary
+│   ├── ClassicStyles.xaml           — UIA-specific styles
+│   └── UIBStyles.xaml               — UIB-specific styles
+├── Utilities/
+│   ├── AppConstants.cs              — all magic numbers (defaults, limits, timings)
+│   ├── AppPaths.cs                  — all file-path helpers (%LocalAppData%\SystemActivityTracker\)
+│   ├── DurationFormatter.cs
+│   ├── JsonFile.cs                  — generic JSON load/save helpers
+│   ├── SingleInstanceManager.cs     — named-mutex single-instance enforcement
+│   ├── TimeSpanExtensions.cs
+│   ├── UiConstants.cs               — UiModes: UIA / UIB (default = UIA)
+│   └── WindowActivator.cs           — brings existing window to foreground
+└── Resources/
+```
+
+---
+
+## 5. Data Storage Layout
+
+All files live under `%LocalAppData%\SystemActivityTracker\`.
+
+| File | Purpose |
+|---|---|
+| `settings.json` | User settings (`AppSettings` model) |
+| `activity-log-YYYY-MM-DD.csv` | Per-day activity rows (`ActivityLogEntry`) |
+| `manual-tasks-YYYY-MM-DD.json` | Per-day manual task entries |
+| `LastRun.json` | Previous-run metadata for crash detection |
+| `logs/close-events-YYYY-MM-DD.jsonl` | Close/crash event records (JSONL) |
+
+Schema must NOT be changed unless explicitly requested.
+Historical data is never rewritten.
+Aggregation is always recalculated on demand from the raw CSV files.
+
+---
+
+## 6. Core Time Definitions
 
 Active:
 - User interacting (keyboard/mouse activity detected).
@@ -40,7 +141,7 @@ Manual:
 - User-entered task duration (HH/MM/SS).
 
 Total Active:
-Active + Manual
+Active + Manual (see `DailySummary.TotalActiveDuration`)
 
 This definition must remain consistent across:
 - Daily view
@@ -51,7 +152,7 @@ This definition must remain consistent across:
 
 ---
 
-## 4. Productivity Color Classification Rule
+## 7. Productivity Color Classification Rule
 
 Total Active hours must be classified into color categories.
 
@@ -72,7 +173,7 @@ If thresholds change in future, they must update system-wide automatically.
 
 ---
 
-## 5. Monthly View Requirements
+## 8. Monthly View Requirements
 
 Monthly view contains:
 - Calendar-based layout
@@ -86,7 +187,38 @@ For each week inside a selected month:
 
 ---
 
-## 6. Architecture Guardrails
+## 9. Key Conventions
+
+### Naming
+- Interfaces prefixed with `I` (e.g., `IActivityLogReader`)
+- Platform/system implementations in `Services/System/` (e.g., `SystemClock`)
+- UI windows prefixed with `UiA` or `UiB` to indicate skin
+- All magic numbers live in `AppConstants` — never inline
+
+### Code Style
+- C# `readonly record struct` for immutable value types (e.g., `ActivityLogEntry`, `TrackingSnapshot`)
+- `INotifyPropertyChanged` implemented manually with `[CallerMemberName]` (no third-party MVVM framework)
+- `IDisposable` required on anything owning timers or event subscriptions
+- `System.Timers.Timer` for background work; `DispatcherTimer` for UI heartbeats
+- `System.Text.Json` exclusively — no Newtonsoft.Json
+
+### Threading
+- Background tracking runs on `System.Timers.Timer` (thread-pool thread)
+- All UI updates must go through `Dispatcher.Invoke` / `Dispatcher.BeginInvoke`
+- `_syncRoot` lock used inside `TrackingService` for shared state
+
+### DI
+- Services are registered and resolved in `App.xaml.cs OnStartup`
+- Constructor injection is used; no service-locator pattern
+
+### Settings
+- All configurable defaults live in `AppConstants.Defaults`
+- Settings are written/read via `SettingsService` using `JsonFile` helpers
+- Settings take effect only after explicit Save — tracking must restart timers after save
+
+---
+
+## 10. Architecture Guardrails
 
 Preferred pattern:
 - MVVM (gradual adoption allowed)
@@ -100,7 +232,7 @@ Rules:
 
 ---
 
-## 7. Tracking Engine Rules
+## 11. Tracking Engine Rules
 
 Tracking must:
 - Remain lightweight
@@ -115,7 +247,7 @@ Any modification to tracking logic must:
 
 ---
 
-## 8. Data Rules
+## 12. Data Rules
 
 - Do not modify storage schema unless explicitly requested.
 - All time calculations must use centralized logic.
@@ -123,7 +255,7 @@ Any modification to tracking logic must:
 
 ---
 
-## 9. Definition of Done (For Any Feature)
+## 13. Definition of Done (For Any Feature)
 
 Every spec must include:
 - What changed
@@ -134,7 +266,7 @@ Every spec must include:
 
 ---
 
-## 10. AI Working Constraints
+## 14. AI Working Constraints
 
 AI must:
 - Keep changes localized

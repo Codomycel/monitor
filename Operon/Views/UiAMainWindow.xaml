@@ -602,17 +602,16 @@
                                                                Style="{StaticResource SecondaryTextStyle}"
                                                                Visibility="{Binding IsWeeklySummary, Converter={StaticResource BoolToVisibilityConverter}}"/>
                                                     
-                                                    <!-- Activity Chart / Future placeholder / Weekly Summary -->
+                                                    <!-- Horizontal Activity Bar / Future placeholder / Weekly Summary -->
                                                     <Grid Grid.Row="1">
-                                                        <!-- Activity chart: visible only when not future and not weekly summary -->
-                                                        <controls:ActivityChart DataContext="{Binding ChartViewModel}"
-                                                                                Margin="6,6,6,12"
-                                                                                Height="90"
-                                                                                MaxHeight="110"
-                                                                                VerticalAlignment="Top"
-                                                                                HorizontalAlignment="Stretch">
-                                                            <controls:ActivityChart.Style>
-                                                                <Style TargetType="controls:ActivityChart">
+                                                        <!-- Horizontal Activity Bar: visible only when not future and not weekly summary -->
+                                                        <controls:HorizontalActivityBar DataContext="{Binding HorizontalBarViewModel}"
+                                                                                        Margin="4,8,4,8"
+                                                                                        Height="12"
+                                                                                        VerticalAlignment="Center"
+                                                                                        HorizontalAlignment="Stretch">
+                                                            <controls:HorizontalActivityBar.Style>
+                                                                <Style TargetType="controls:HorizontalActivityBar">
                                                                     <Setter Property="Visibility" Value="Collapsed"/>
                                                                     <Style.Triggers>
                                                                         <MultiDataTrigger>
@@ -625,8 +624,8 @@
                                                                         </MultiDataTrigger>
                                                                     </Style.Triggers>
                                                                 </Style>
-                                                            </controls:ActivityChart.Style>
-                                                        </controls:ActivityChart>
+                                                            </controls:HorizontalActivityBar.Style>
+                                                        </controls:HorizontalActivityBar>
 
                                                         <!-- Future dates: intentionally left empty (no chart, no text) -->
 

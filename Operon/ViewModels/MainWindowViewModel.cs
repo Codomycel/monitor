@@ -30,7 +30,7 @@ namespace SystemActivityTracker.ViewModels
     public class MonthlyDayItem : CalendarDayItemBase
     {
         private int _weekNumber;
-        
+
         public override DateTime Date { get; set; }
         public TimeSpan TotalActive { get; set; }
         public TimeSpan TotalIdle { get; set; }
@@ -42,6 +42,7 @@ namespace SystemActivityTracker.ViewModels
         public override int WeekNumber { get => _weekNumber; set => _weekNumber = value; }
         public override bool IsWeeklySummary => false;
         public ActivityChartViewModel? ChartViewModel { get; set; }
+        public HorizontalActivityBarViewModel? HorizontalBarViewModel { get; set; }
         public bool IsFuture { get; set; }
         public bool HasChart { get; set; }
     }
@@ -506,7 +507,7 @@ namespace SystemActivityTracker.ViewModels
             int hours = (int)total.TotalHours;
             int minutes = total.Minutes;
             int seconds = total.Seconds;
-            HeaderRunningTimerText = GetString("HeaderActivePrefix", "Active - ") + string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00}", hours, minutes, seconds);
+            HeaderRunningTimerText = GetString("HeaderActivePrefix", "Active : ") + string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00}", hours, minutes, seconds);
         }
 
         private void SyncHeaderActiveBaseFromSummary()
@@ -959,6 +960,7 @@ namespace SystemActivityTracker.ViewModels
                 dayItem.IsFuture = date.Date > DateTime.Today;
                 if (!dayItem.IsFuture)
                 {
+                    // Create vertical chart (existing)
                     var chartViewModel = new ActivityChartViewModel();
                     chartViewModel.ReferenceTime = TimeSpan.FromHours(8);
                     chartViewModel.ShowReferenceLabel = false;
@@ -968,6 +970,12 @@ namespace SystemActivityTracker.ViewModels
                     chartViewModel.UpdateBarSizing(90, 80); // Slightly larger for monthly calendar to increase bar width
                     chartViewModel.XAxisLabels = new string[] { "", "", "" }; // Hide axis labels for compact monthly view
                     dayItem.ChartViewModel = chartViewModel;
+
+                    // Create horizontal bar (new compact view)
+                    var horizontalBarViewModel = new HorizontalActivityBarViewModel();
+                    horizontalBarViewModel.ReferenceTime = TimeSpan.FromHours(8);
+                    dayItem.HorizontalBarViewModel = horizontalBarViewModel;
+
                     dayItem.HasChart = true;
                 }
                 else
@@ -1010,10 +1018,14 @@ namespace SystemActivityTracker.ViewModels
                     dayItem.TotalLocked = lockedTime;
                     dayItem.ManualTime = manualTime;
 
-                    // Set chart data (only if a chart view model exists - future dates may not have one)
+                    // Set chart data (only if view models exist - future dates may not have them)
                     if (dayItem.ChartViewModel != null)
                     {
                         dayItem.ChartViewModel.SetData(activeTime, manualTime, idleTime, lockedTime);
+                    }
+                    if (dayItem.HorizontalBarViewModel != null)
+                    {
+                        dayItem.HorizontalBarViewModel.SetData(activeTime, manualTime, idleTime, lockedTime);
                     }
                 }
 
