@@ -21,6 +21,7 @@
             <conv:SelectedDayBarWidthConverter x:Key="SelectedDayBarWidthConverter"/>
             <conv:GreaterThanZeroToVisibilityConverter x:Key="GreaterThanZeroToVisibilityConverter"/>
             <conv:ZeroToVisibilityConverter x:Key="ZeroToVisibilityConverter"/>
+            <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
         </ResourceDictionary>
     </Window.Resources>
 
@@ -122,6 +123,7 @@
                                                 <RowDefinition Height="Auto"/>
                                                 <RowDefinition Height="Auto"/>
                                                 <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
                                             </Grid.RowDefinitions>
 
                                             <TextBlock Grid.Row="0" Text="Started:" Style="{StaticResource BodyTextStyle}" Margin="0,2,12,2"/>
@@ -130,20 +132,23 @@
                                             <TextBlock Grid.Row="1" Text="Ended:" Style="{StaticResource BodyTextStyle}" Margin="0,2,12,2"/>
                                             <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedDayEndText}" Style="{StaticResource BodyTextStyle}" Margin="0,2,0,2"/>
 
-                                            <TextBlock Grid.Row="2" Text="Active:" Style="{StaticResource BodyTextStyle}" Margin="0,2,12,2"/>
-                                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedDayActiveTrackedText}" Style="{StaticResource BodyTextStyle}" Margin="0,2,0,2"/>
+                                            <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Text="{Binding SelectedDayLeaveSummaryText}" Style="{StaticResource BodyTextStyle}" Margin="0,2,0,2"
+                                                       Visibility="{Binding HasSelectedDayLeave, Converter={StaticResource BoolToVisibilityConverter}}"/>
 
-                                            <TextBlock Grid.Row="3" Text="Manual:" Style="{StaticResource BodyTextStyle}" Margin="0,2,12,2"/>
-                                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedDayManualTasksText}" Style="{StaticResource BodyTextStyle}" Margin="0,2,0,2"/>
+                                            <TextBlock Grid.Row="3" Text="Active:" Style="{StaticResource BodyTextStyle}" Margin="0,2,12,2"/>
+                                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedDayActiveTrackedText}" Style="{StaticResource BodyTextStyle}" Margin="0,2,0,2"/>
 
-                                            <TextBlock Grid.Row="4" Text="Total Active:" Style="{StaticResource BodyTextStyle}" Margin="0,2,12,2"/>
-                                            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SelectedDayTotalActiveText}" Style="{StaticResource BodyTextStyle}" Margin="0,2,0,2"/>
+                                            <TextBlock Grid.Row="4" Text="Manual:" Style="{StaticResource BodyTextStyle}" Margin="0,2,12,2"/>
+                                            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SelectedDayManualTasksText}" Style="{StaticResource BodyTextStyle}" Margin="0,2,0,2"/>
 
-                                            <TextBlock Grid.Row="5" Text="Idle:" Style="{StaticResource BodyTextStyle}" Margin="0,2,12,2"/>
-                                            <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding SelectedDayIdleText}" Style="{StaticResource BodyTextStyle}" Margin="0,2,0,2"/>
+                                            <TextBlock Grid.Row="5" Text="Total Active:" Style="{StaticResource BodyTextStyle}" Margin="0,2,12,2"/>
+                                            <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding SelectedDayTotalActiveText}" Style="{StaticResource BodyTextStyle}" Margin="0,2,0,2"/>
 
-                                            <TextBlock Grid.Row="6" Text="Locked:" Style="{StaticResource BodyTextStyle}" Margin="0,2,12,2"/>
-                                            <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding SelectedDayLockedText}" Style="{StaticResource BodyTextStyle}" Margin="0,2,0,2"/>
+                                            <TextBlock Grid.Row="6" Text="Idle:" Style="{StaticResource BodyTextStyle}" Margin="0,2,12,2"/>
+                                            <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding SelectedDayIdleText}" Style="{StaticResource BodyTextStyle}" Margin="0,2,0,2"/>
+
+                                            <TextBlock Grid.Row="7" Text="Locked:" Style="{StaticResource BodyTextStyle}" Margin="0,2,12,2"/>
+                                            <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding SelectedDayLockedText}" Style="{StaticResource BodyTextStyle}" Margin="0,2,0,2"/>
                                         </Grid>
 
                                         <Grid Margin="0,12,0,0">
@@ -439,9 +444,12 @@
                         <StackPanel>
                             <TextBlock Text="Weekly Overview" Style="{StaticResource HeaderTextStyle}"/>
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,10">
-                                <TextBlock Text="Week start:" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <DatePicker SelectedDate="{Binding WeekStartDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="140" Margin="0,0,8,0"/>
-                                <Button Content="Load" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding LoadWeeklyCommand}"/>
+                                <Button Command="{Binding PreviousWeekCommand}" Style="{StaticResource SecondaryButtonStyle}" Content="◀" Padding="8,4" Margin="0,0,6,0" ToolTip="Previous week"/>
+                                <Button Command="{Binding NextWeekCommand}" Style="{StaticResource SecondaryButtonStyle}" Content="▶" Padding="8,4" Margin="0,0,6,0" ToolTip="Next week"/>
+                                <TextBlock Text="{Binding SelectedWeekRangeText}" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <Button Command="{Binding CurrentWeekCommand}" Content="This Week" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0"/>
+                                <TextBlock Text="Select week:" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <DatePicker SelectedDate="{Binding WeekPickerDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="140" ToolTip="Pick any date to jump to that week"/>
                             </StackPanel>
                             <DataGrid ItemsSource="{Binding WeeklySummaries}" AutoGenerateColumns="False" IsReadOnly="True"
                                       CanUserAddRows="False" CanUserDeleteRows="False" HeadersVisibility="Column"

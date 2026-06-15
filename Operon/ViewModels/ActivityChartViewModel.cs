@@ -40,9 +40,44 @@ namespace SystemActivityTracker.ViewModels
         public TimeSpan ReferenceTime { get; set; } = TimeSpan.FromHours(8);
 
         /// <summary>
+        /// Fallback scale when expected/reference time is zero (8h daily, 40h weekly).
+        /// </summary>
+        public TimeSpan ScaleFallbackReference { get; set; } = TimeSpan.FromHours(8);
+
+        /// <summary>
         /// Controls whether to show the reference line label (e.g., "8h")
         /// </summary>
-        public bool ShowReferenceLabel { get; set; } = true;
+        private bool _showReferenceLabel = true;
+        public bool ShowReferenceLabel
+        {
+            get => _showReferenceLabel;
+            set
+            {
+                if (_showReferenceLabel == value)
+                {
+                    return;
+                }
+
+                _showReferenceLabel = value;
+                OnPropertyChanged();
+            }
+        }
+
+        private bool _showReferenceLine = true;
+        public bool ShowReferenceLine
+        {
+            get => _showReferenceLine;
+            private set
+            {
+                if (_showReferenceLine == value)
+                {
+                    return;
+                }
+
+                _showReferenceLine = value;
+                OnPropertyChanged();
+            }
+        }
 
         /// <summary>
         /// Controls whether to show the chart legend
@@ -78,7 +113,7 @@ namespace SystemActivityTracker.ViewModels
         /// <summary>
         /// Controls whether to show the X-axis separator line (hide in total-activity-only mode)
         /// </summary>
-        private bool _showXAxisSeparator = true;
+        private bool _showXAxisSeparator = false;
         public bool ShowXAxisSeparator
         {
             get => _showXAxisSeparator;
@@ -148,6 +183,19 @@ namespace SystemActivityTracker.ViewModels
         /// <param name="availableHeight">Available height for the chart</param>
         public void UpdateBarSizing(double availableWidth, double availableHeight)
         {
+            if (availableWidth > 0)
+            {
+                _lastChartWidth = Math.Max(PlotLeftInset + 1, availableWidth);
+            }
+
+            if (availableHeight > 0)
+            {
+                _lastChartHeight = Math.Max(PlotTopInset + PlotBottomInset + 1, availableHeight);
+            }
+
+            var width = _lastChartWidth;
+            var height = _lastChartHeight;
+
             // Determine category count (number of slots along X axis)
             int categoryCount = Math.Max(1, XAxisLabels?.Length ?? 1);
             try
@@ -170,7 +218,7 @@ namespace SystemActivityTracker.ViewModels
             int barCountPerSlot = Math.Max(1, ChartSeries?.Count ?? 1);
 
             // Compute slot width - total available width divided by number of categories
-            double slotWidth = availableWidth > 0 ? availableWidth / (double)Math.Max(1, categoryCount) : 10.0;
+            double slotWidth = width > 0 ? width / (double)Math.Max(1, categoryCount) : 10.0;
 
             // Use the capped bar width (does NOT grow with available width)
             double BW = DesiredBarWidth;
@@ -198,6 +246,7 @@ namespace SystemActivityTracker.ViewModels
 
             // Apply sizing to any existing series so UI updates immediately
             ApplyBarGap();
+            UpdateReferenceLineLayout(Math.Max(0, ReferenceTime.TotalSeconds), YAxisMax);
         }
 
         /// <summary>
@@ -306,6 +355,9 @@ namespace SystemActivityTracker.ViewModels
             }
         }
 
+        public double ReferenceLinePlotWidth =>
+            Math.Max(1, _lastChartWidth - PlotLeftInset - PlotRightInset);
+
         // Tooltip properties
         private string _tooltipTotalActive = "";
         public string TooltipTotalActive
@@ -410,6 +462,45 @@ namespace SystemActivityTracker.ViewModels
 
         #region Private Methods
 
+        private double _lastChartWidth = 200;
+        private double _lastChartHeight = 200;
+        private const double PlotTopInset = 8;
+        private const double PlotBottomInset = 62;
+        private const double PlotLeftInset = 50;
+        private const double PlotRightInset = 16;
+
+        private void UpdateReferenceLineLayout(double referenceSeconds, double yAxisMax)
+        {
+            var showReference = referenceSeconds > 0;
+            if (ShowReferenceLine != showReference)
+            {
+                ShowReferenceLine = showReference;
+            }
+
+            if (!showReference)
+            {
+                ShowReferenceLabel = false;
+                return;
+            }
+
+            if (!ShowTotalActivityOnly)
+            {
+                ShowReferenceLabel = true;
+            }
+
+            var plotHeight = Math.Max(1, _lastChartHeight - PlotTopInset - PlotBottomInset);
+            var referenceRatio = yAxisMax > 0 ? referenceSeconds / yAxisMax : 0;
+            referenceRatio = Math.Max(0, Math.Min(1, referenceRatio));
+
+            // Plot-local coordinates: bottom of canvas = Y-axis zero.
+            EightHourLinePosition = plotHeight - (referenceRatio * plotHeight);
+            EightHourLabelPosition = Math.Max(0, EightHourLinePosition - 10);
+            EightHourLabelTextPosition = Math.Max(0, EightHourLinePosition - 8);
+            ReferenceLabelText = $"{ReferenceTime.TotalHours:F0}h";
+
+            OnPropertyChanged(nameof(ReferenceLinePlotWidth));
+        }
+
         private void InitializeChartIfNeeded()
         {
             if (ChartSeries.Count == 0)
@@ -418,7 +509,7 @@ namespace SystemActivityTracker.ViewModels
                 var totalActiveSeries = new ColumnSeries
                 {
                     Title = "Total Active",
-                    Values = new ChartValues<double> { 0.1 }, // Start with small non-zero value
+                    Values = new ChartValues<double> { 0 },
                     DataLabels = ShowDataLabels,
                     StrokeThickness = 0,
                     ColumnPadding = ColumnPadding,  // Use responsive padding
@@ -434,7 +525,7 @@ namespace SystemActivityTracker.ViewModels
                     var lockedSeries = new ColumnSeries
                     {
                         Title = "Locked",
-                        Values = new ChartValues<double> { 0.1 }, // Start with small non-zero value
+                        Values = new ChartValues<double> { 0 },
                         DataLabels = ShowDataLabels,
                         StrokeThickness = 0,
                         Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(107, 114, 128)), // #6B7280 (Neutral Grey)
@@ -446,7 +537,7 @@ namespace SystemActivityTracker.ViewModels
                     var idleSeries = new ColumnSeries
                     {
                         Title = "Idle",
-                        Values = new ChartValues<double> { 0.1 }, // Start with small non-zero value
+                        Values = new ChartValues<double> { 0 },
                         DataLabels = ShowDataLabels,
                         StrokeThickness = 0,
                         Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(156, 163, 175)), // #9CA3AF (Light Grey)
@@ -496,33 +587,25 @@ namespace SystemActivityTracker.ViewModels
 
             if (ChartSeries == null || ChartSeries.Count == 0) return;
 
-            // Use seconds as the base unit for all calculations
-            var totalActiveSeconds = (TotalActiveTime + ManualTasksDuration).TotalSeconds;
-            var lockedSeconds = LockedTime.TotalSeconds;
-            var idleSeconds = IdleTime.TotalSeconds;
+            // Use seconds as the base unit for all calculations; never render negative heights.
+            var totalActiveSeconds = Math.Max(0, (TotalActiveTime + ManualTasksDuration).TotalSeconds);
+            var lockedSeconds = Math.Max(0, LockedTime.TotalSeconds);
+            var idleSeconds = Math.Max(0, IdleTime.TotalSeconds);
 
-            // Ensure minimum values to prevent rendering issues
-            if (totalActiveSeconds < 0.1) totalActiveSeconds = 0.1;
-            if (lockedSeconds < 0.1) lockedSeconds = 0.1;
-            if (idleSeconds < 0.1) idleSeconds = 0.1;
+            var referenceSeconds = Math.Max(0, ReferenceTime.TotalSeconds);
+            var fallbackSeconds = ScaleFallbackReference.TotalSeconds > 0
+                ? ScaleFallbackReference.TotalSeconds
+                : TimeSpan.FromHours(8).TotalSeconds;
 
-            // Calculate Y-axis max with 10% padding, but ensure minimum scale
             var maxValue = Math.Max(totalActiveSeconds, Math.Max(lockedSeconds, idleSeconds));
-            var referenceSeconds = ReferenceTime.TotalSeconds;
-            YAxisMax = Math.Max(referenceSeconds, maxValue) * 1.1;
-            
-            // Ensure minimum Y-axis max to prevent rendering issues
-            if (YAxisMax < 3600) YAxisMax = 3600; // Minimum 1 hour
+            YAxisMax = Math.Max(maxValue, Math.Max(referenceSeconds, fallbackSeconds)) * 1.1;
 
-            // Calculate reference line position (in chart coordinates)
-            var chartHeight = 200.0;
-            EightHourLinePosition = chartHeight - (referenceSeconds / YAxisMax * chartHeight);
-            EightHourLabelPosition = EightHourLinePosition - 10;
-            EightHourLabelTextPosition = EightHourLinePosition - 8;
+            if (YAxisMax <= 0)
+            {
+                YAxisMax = fallbackSeconds * 1.1;
+            }
 
-            // Update reference label text based on ReferenceTime
-            var referenceHours = ReferenceTime.TotalHours;
-            ReferenceLabelText = $"{referenceHours:F0}h";
+            UpdateReferenceLineLayout(referenceSeconds, YAxisMax);
 
             // Update Total Active series (index 0)
             if (ChartSeries.Count > 0 && ChartSeries[0] is ColumnSeries totalActiveSeries && totalActiveSeries.Values != null && totalActiveSeries.Values.Count > 0)
@@ -536,14 +619,20 @@ namespace SystemActivityTracker.ViewModels
             if (ChartSeries.Count > 1 && ChartSeries[1] is ColumnSeries lockedSeries && lockedSeries.Values != null && lockedSeries.Values.Count > 0)
             {
                 lockedSeries.Values[0] = lockedSeconds;
-                lockedSeries.LabelPoint = point => FormatSummaryLabel(lockedSeconds);
+                lockedSeries.Fill = lockedSeconds > 0
+                    ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(107, 114, 128))
+                    : System.Windows.Media.Brushes.Transparent;
+                lockedSeries.LabelPoint = point => lockedSeconds > 0 ? FormatSummaryLabel(lockedSeconds) : string.Empty;
             }
 
             // Update Idle series (index 2) - only if it exists (3-series mode)
             if (ChartSeries.Count > 2 && ChartSeries[2] is ColumnSeries idleSeries && idleSeries.Values != null && idleSeries.Values.Count > 0)
             {
                 idleSeries.Values[0] = idleSeconds;
-                idleSeries.LabelPoint = point => FormatSummaryLabel(idleSeconds);
+                idleSeries.Fill = idleSeconds > 0
+                    ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(156, 163, 175))
+                    : System.Windows.Media.Brushes.Transparent;
+                idleSeries.LabelPoint = point => idleSeconds > 0 ? FormatSummaryLabel(idleSeconds) : string.Empty;
             }
 
             // Notify property changes for computed properties
@@ -568,7 +657,17 @@ namespace SystemActivityTracker.ViewModels
         private System.Windows.Media.Brush GetTotalActiveColor(double totalActiveMinutes)
         {
             var referenceHours = ReferenceTime.TotalHours;
-            var hours = totalActiveMinutes / 60.0;
+            var hours = Math.Max(0, totalActiveMinutes / 60.0);
+
+            if (referenceHours <= 0)
+            {
+                if (hours <= 0)
+                {
+                    return new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(156, 163, 175)); // #9CA3AF
+                }
+
+                return new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68)); // #EF4444
+            }
             
             // Clamp to cap (1.25x reference time)
             var capHours = referenceHours * 1.25;
@@ -600,8 +699,14 @@ namespace SystemActivityTracker.ViewModels
                     if (Math.Abs(hours - end.Hours) < 0.001)
                         return new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(end.Color.R, end.Color.G, end.Color.B));
                     
+                    var denominator = end.Hours - start.Hours;
+                    if (Math.Abs(denominator) < 0.001)
+                    {
+                        continue;
+                    }
+
                     // Interpolate between colors
-                    var t = (hours - start.Hours) / (end.Hours - start.Hours);
+                    var t = (hours - start.Hours) / denominator;
                     var interpolatedColor = InterpolateRgb(start.Color, end.Color, t);
                     return new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(interpolatedColor.R, interpolatedColor.G, interpolatedColor.B));
                 }

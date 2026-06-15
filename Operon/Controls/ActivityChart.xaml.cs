@@ -11,6 +11,15 @@ namespace SystemActivityTracker.Controls
         public ActivityChart()
         {
             InitializeComponent();
+            Loaded += UserControl_Loaded;
+        }
+
+        private void UserControl_Loaded(object sender, System.Windows.RoutedEventArgs e)
+        {
+            if (DataContext is ActivityChartViewModel viewModel && ActualWidth > 0 && ActualHeight > 0)
+            {
+                viewModel.UpdateBarSizing(ActualWidth, ActualHeight);
+            }
         }
 
         private void UserControl_SizeChanged(object sender, System.Windows.SizeChangedEventArgs e)

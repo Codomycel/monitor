@@ -228,6 +228,9 @@
                                             Width="140"/>
                             </Grid>
 
+                            <TextBlock Text="{Binding SelectedDayLeaveSummaryText}" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,0,8"
+                                       Visibility="{Binding HasSelectedDayLeave, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
                             <!-- Hidden Started/Ended Grid -->
                             <Grid Visibility="Collapsed">
                                 <Grid.ColumnDefinitions>
@@ -268,7 +271,7 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- This Week Card -->
+                    <!-- Week Report Card -->
                     <Border Background="White" CornerRadius="10" Padding="12" BorderBrush="#E5E7EB" BorderThickness="1"
                             MinWidth="280" HorizontalAlignment="Stretch" Margin="0,0,0,12">
                         <Border.Effect>
@@ -276,16 +279,43 @@
                         </Border.Effect>
 
                         <StackPanel>
-                            <TextBlock Text="This Week" Style="{StaticResource SectionHeaderTextStyle}" Margin="0,0,0,8"
-                                       FontWeight="SemiBold" FontSize="15"/>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding WeekReportHeaderText}" Style="{StaticResource SectionHeaderTextStyle}"
+                                           FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <Button Command="{Binding PreviousWeekCommand}" Style="{StaticResource IconOnlyButtonStyle}"
+                                            ToolTip="Previous week" Margin="0,0,4,0">
+                                        <TextBlock Text="&#xE72B;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                                    </Button>
+                                    <Button Command="{Binding NextWeekCommand}" Style="{StaticResource IconOnlyButtonStyle}"
+                                            ToolTip="Next week" Margin="0,0,4,0">
+                                        <TextBlock Text="&#xE76C;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                                    </Button>
+                                    <Button Command="{Binding CurrentWeekCommand}" Content="This Week"
+                                            Style="{StaticResource SecondaryButtonStyle}" Padding="8,4" FontSize="11" Margin="0,0,4,0"/>
+                                </StackPanel>
+                            </Grid>
 
-                            <TextBlock Text="{Binding WeekNumberText}" Style="{StaticResource SecondaryTextStyle}"/>
-                            <TextBlock Text="{Binding WeekRangeText}" Style="{StaticResource SecondaryTextStyle}" Margin="0,2,0,8"/>
+                            <TextBlock Text="{Binding SelectedWeekRangeText}" Style="{StaticResource SecondaryTextStyle}" Margin="0,2,0,8"/>
+
+                            <TextBlock Text="{Binding WeekLeaveSummaryText}" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,0,8"
+                                       Visibility="{Binding HasWeekLeave, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="Select week:" Style="{StaticResource SecondaryTextStyle}"
+                                           VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <DatePicker SelectedDate="{Binding WeekPickerDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Width="130" ToolTip="Pick any date to jump to that week"/>
+                            </StackPanel>
 
                             <ContentControl Content="{Binding WeeklyActivityChartViewModel}">
                                 <ContentControl.ContentTemplate>
                                     <DataTemplate>
-                                        <controls:ActivityChart Height="195" DataContext="{Binding}"/>
+                                        <controls:ActivityChart Height="230" DataContext="{Binding}"/>
                                     </DataTemplate>
                                 </ContentControl.ContentTemplate>
                             </ContentControl>
@@ -1470,13 +1500,23 @@
                                 
                                 <TextBlock Text="Weekly Overview" Style="{StaticResource SectionHeaderTextStyle}" VerticalAlignment="Center"/>
                                 
-                                <StackPanel Grid.Column="2" Orientation="Horizontal">
-                                    <TextBlock Text="Week start:" Style="{StaticResource BodyTextStyle}" 
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Command="{Binding PreviousWeekCommand}" Style="{StaticResource IconOnlyButtonStyle}"
+                                            ToolTip="Previous week" Margin="0,0,6,0">
+                                        <TextBlock Text="&#xE72B;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                    </Button>
+                                    <Button Command="{Binding NextWeekCommand}" Style="{StaticResource IconOnlyButtonStyle}"
+                                            ToolTip="Next week" Margin="0,0,6,0">
+                                        <TextBlock Text="&#xE76C;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                    </Button>
+                                    <TextBlock Text="{Binding SelectedWeekRangeText}" Style="{StaticResource SecondaryTextStyle}"
+                                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <Button Command="{Binding CurrentWeekCommand}" Content="This Week"
+                                            Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0"/>
+                                    <TextBlock Text="Select week:" Style="{StaticResource BodyTextStyle}"
                                                VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                    <DatePicker SelectedDate="{Binding WeekStartDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
-                                                Width="140" Margin="0,0,8,0"/>
-                                    <Button Content="Load" Style="{StaticResource SecondaryButtonStyle}" 
-                                            Command="{Binding LoadWeeklyCommand}"/>
+                                    <DatePicker SelectedDate="{Binding WeekPickerDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                Width="140" ToolTip="Pick any date to jump to that week"/>
                                 </StackPanel>
                             </Grid>
                         </Border>

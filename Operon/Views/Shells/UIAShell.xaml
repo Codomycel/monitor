@@ -220,6 +220,7 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Started" FontSize="13" Margin="0,3,12,3"/>
@@ -230,24 +231,30 @@
                                 <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedDayEndText}" FontSize="13" Margin="0,3,0,3"
                                            HorizontalAlignment="Left"/>
 
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Active" FontSize="13" Margin="0,3,12,3"/>
-                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedDayActiveTrackedText}" FontSize="13" Margin="0,3,0,3"
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Leave" FontSize="13" Margin="0,3,12,3"
+                                           Visibility="{Binding HasSelectedDayLeave, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedDayLeaveSummaryText}" FontSize="13" Margin="0,3,0,3"
+                                           HorizontalAlignment="Left"
+                                           Visibility="{Binding HasSelectedDayLeave, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Active" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedDayActiveTrackedText}" FontSize="13" Margin="0,3,0,3"
                                            HorizontalAlignment="Left"/>
 
-                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Manual" FontSize="13" Margin="0,3,12,3"/>
-                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedDayManualTasksText}" FontSize="13" Margin="0,3,0,3"
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Manual" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SelectedDayManualTasksText}" FontSize="13" Margin="0,3,0,3"
                                            HorizontalAlignment="Left"/>
 
-                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Total Active" FontSize="13" Margin="0,3,12,3"/>
-                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SelectedDayTotalActiveText}" FontSize="13" Margin="0,3,0,3"
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Total Active" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding SelectedDayTotalActiveText}" FontSize="13" Margin="0,3,0,3"
                                            HorizontalAlignment="Left"/>
 
-                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Idle" FontSize="13" Margin="0,3,12,3"/>
-                                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding SelectedDayIdleText}" FontSize="13" Margin="0,3,0,3"
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="Idle" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding SelectedDayIdleText}" FontSize="13" Margin="0,3,0,3"
                                            HorizontalAlignment="Left"/>
 
-                                <TextBlock Grid.Row="6" Grid.Column="0" Text="Locked" FontSize="13" Margin="0,3,12,3"/>
-                                <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding SelectedDayLockedText}" FontSize="13" Margin="0,3,0,3"
+                                <TextBlock Grid.Row="7" Grid.Column="0" Text="Locked" FontSize="13" Margin="0,3,12,3"/>
+                                <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding SelectedDayLockedText}" FontSize="13" Margin="0,3,0,3"
                                            HorizontalAlignment="Left"/>
                             </Grid>
 
@@ -380,11 +387,38 @@
                         </Border.Effect>
 
                         <StackPanel>
-                            <TextBlock Text="This Week" Style="{StaticResource SectionHeaderTextStyle}" Margin="0,0,0,8"
-                                       FontWeight="SemiBold" FontSize="15"/>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding WeekReportHeaderText}" Style="{StaticResource SectionHeaderTextStyle}"
+                                           FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <Button Command="{Binding PreviousWeekCommand}" Style="{StaticResource IconOnlyButtonStyle}"
+                                            ToolTip="Previous week" Margin="0,0,4,0">
+                                        <TextBlock Text="&#xE72B;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                                    </Button>
+                                    <Button Command="{Binding NextWeekCommand}" Style="{StaticResource IconOnlyButtonStyle}"
+                                            ToolTip="Next week" Margin="0,0,4,0">
+                                        <TextBlock Text="&#xE76C;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                                    </Button>
+                                    <Button Command="{Binding CurrentWeekCommand}" Content="This Week"
+                                            Style="{StaticResource SecondaryButtonStyle}" Padding="8,4" FontSize="11" Margin="0,0,4,0"/>
+                                </StackPanel>
+                            </Grid>
 
-                            <TextBlock Text="{Binding WeekNumberText}" Style="{StaticResource SecondaryTextStyle}"/>
-                            <TextBlock Text="{Binding WeekRangeText}" Style="{StaticResource SecondaryTextStyle}" Margin="0,2,0,8"/>
+                            <TextBlock Text="{Binding SelectedWeekRangeText}" Style="{StaticResource SecondaryTextStyle}" Margin="0,2,0,8"/>
+
+                            <TextBlock Text="{Binding WeekLeaveSummaryText}" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,0,8"
+                                       Visibility="{Binding HasWeekLeave, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="Select week:" Style="{StaticResource SecondaryTextStyle}"
+                                           VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <DatePicker SelectedDate="{Binding WeekPickerDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Width="130" ToolTip="Pick any date to jump to that week"/>
+                            </StackPanel>
 
                             <Grid>
                                 <Grid.ColumnDefinitions>
