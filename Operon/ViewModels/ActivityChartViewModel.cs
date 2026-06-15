@@ -40,6 +40,11 @@ namespace SystemActivityTracker.ViewModels
         public TimeSpan ReferenceTime { get; set; } = TimeSpan.FromHours(8);
 
         /// <summary>
+        /// Fallback scale when expected/reference time is zero (8h daily, 40h weekly).
+        /// </summary>
+        public TimeSpan ScaleFallbackReference { get; set; } = TimeSpan.FromHours(8);
+
+        /// <summary>
         /// Controls whether to show the reference line label (e.g., "8h")
         /// </summary>
         public bool ShowReferenceLabel { get; set; } = true;
@@ -418,7 +423,7 @@ namespace SystemActivityTracker.ViewModels
                 var totalActiveSeries = new ColumnSeries
                 {
                     Title = "Total Active",
-                    Values = new ChartValues<double> { 0.1 }, // Start with small non-zero value
+                    Values = new ChartValues<double> { 0 },
                     DataLabels = ShowDataLabels,
                     StrokeThickness = 0,
                     ColumnPadding = ColumnPadding,  // Use responsive padding
@@ -434,7 +439,7 @@ namespace SystemActivityTracker.ViewModels
                     var lockedSeries = new ColumnSeries
                     {
                         Title = "Locked",
-                        Values = new ChartValues<double> { 0.1 }, // Start with small non-zero value
+                        Values = new ChartValues<double> { 0 },
                         DataLabels = ShowDataLabels,
                         StrokeThickness = 0,
                         Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(107, 114, 128)), // #6B7280 (Neutral Grey)
@@ -446,7 +451,7 @@ namespace SystemActivityTracker.ViewModels
                     var idleSeries = new ColumnSeries
                     {
                         Title = "Idle",
-                        Values = new ChartValues<double> { 0.1 }, // Start with small non-zero value
+                        Values = new ChartValues<double> { 0 },
                         DataLabels = ShowDataLabels,
                         StrokeThickness = 0,
                         Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(156, 163, 175)), // #9CA3AF (Light Grey)
@@ -496,33 +501,37 @@ namespace SystemActivityTracker.ViewModels
 
             if (ChartSeries == null || ChartSeries.Count == 0) return;
 
-            // Use seconds as the base unit for all calculations
-            var totalActiveSeconds = (TotalActiveTime + ManualTasksDuration).TotalSeconds;
-            var lockedSeconds = LockedTime.TotalSeconds;
-            var idleSeconds = IdleTime.TotalSeconds;
+            // Use seconds as the base unit for all calculations; never render negative heights.
+            var totalActiveSeconds = Math.Max(0, (TotalActiveTime + ManualTasksDuration).TotalSeconds);
+            var lockedSeconds = Math.Max(0, LockedTime.TotalSeconds);
+            var idleSeconds = Math.Max(0, IdleTime.TotalSeconds);
 
-            // Ensure minimum values to prevent rendering issues
-            if (totalActiveSeconds < 0.1) totalActiveSeconds = 0.1;
-            if (lockedSeconds < 0.1) lockedSeconds = 0.1;
-            if (idleSeconds < 0.1) idleSeconds = 0.1;
+            var referenceSeconds = Math.Max(0, ReferenceTime.TotalSeconds);
+            var fallbackSeconds = ScaleFallbackReference.TotalSeconds > 0
+                ? ScaleFallbackReference.TotalSeconds
+                : TimeSpan.FromHours(8).TotalSeconds;
 
-            // Calculate Y-axis max with 10% padding, but ensure minimum scale
             var maxValue = Math.Max(totalActiveSeconds, Math.Max(lockedSeconds, idleSeconds));
-            var referenceSeconds = ReferenceTime.TotalSeconds;
-            YAxisMax = Math.Max(referenceSeconds, maxValue) * 1.1;
-            
-            // Ensure minimum Y-axis max to prevent rendering issues
-            if (YAxisMax < 3600) YAxisMax = 3600; // Minimum 1 hour
+            YAxisMax = Math.Max(maxValue, Math.Max(referenceSeconds, fallbackSeconds)) * 1.1;
 
-            // Calculate reference line position (in chart coordinates)
+            if (YAxisMax <= 0)
+            {
+                YAxisMax = fallbackSeconds * 1.1;
+            }
+
+            // Calculate reference line position (in chart coordinates), clamped to chart bounds.
             var chartHeight = 200.0;
-            EightHourLinePosition = chartHeight - (referenceSeconds / YAxisMax * chartHeight);
+            var referenceRatio = referenceSeconds > 0 && YAxisMax > 0
+                ? referenceSeconds / YAxisMax
+                : 0;
+            referenceRatio = Math.Max(0, Math.Min(1, referenceRatio));
+            EightHourLinePosition = chartHeight - (referenceRatio * chartHeight);
             EightHourLabelPosition = EightHourLinePosition - 10;
             EightHourLabelTextPosition = EightHourLinePosition - 8;
 
-            // Update reference label text based on ReferenceTime
-            var referenceHours = ReferenceTime.TotalHours;
-            ReferenceLabelText = $"{referenceHours:F0}h";
+            ReferenceLabelText = referenceSeconds > 0
+                ? $"{ReferenceTime.TotalHours:F0}h"
+                : "0h";
 
             // Update Total Active series (index 0)
             if (ChartSeries.Count > 0 && ChartSeries[0] is ColumnSeries totalActiveSeries && totalActiveSeries.Values != null && totalActiveSeries.Values.Count > 0)
@@ -568,7 +577,17 @@ namespace SystemActivityTracker.ViewModels
         private System.Windows.Media.Brush GetTotalActiveColor(double totalActiveMinutes)
         {
             var referenceHours = ReferenceTime.TotalHours;
-            var hours = totalActiveMinutes / 60.0;
+            var hours = Math.Max(0, totalActiveMinutes / 60.0);
+
+            if (referenceHours <= 0)
+            {
+                if (hours <= 0)
+                {
+                    return new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(156, 163, 175)); // #9CA3AF
+                }
+
+                return new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68)); // #EF4444
+            }
             
             // Clamp to cap (1.25x reference time)
             var capHours = referenceHours * 1.25;
@@ -600,8 +619,14 @@ namespace SystemActivityTracker.ViewModels
                     if (Math.Abs(hours - end.Hours) < 0.001)
                         return new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(end.Color.R, end.Color.G, end.Color.B));
                     
+                    var denominator = end.Hours - start.Hours;
+                    if (Math.Abs(denominator) < 0.001)
+                    {
+                        continue;
+                    }
+
                     // Interpolate between colors
-                    var t = (hours - start.Hours) / (end.Hours - start.Hours);
+                    var t = (hours - start.Hours) / denominator;
                     var interpolatedColor = InterpolateRgb(start.Color, end.Color, t);
                     return new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(interpolatedColor.R, interpolatedColor.G, interpolatedColor.B));
                 }

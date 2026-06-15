@@ -83,6 +83,16 @@ namespace SystemActivityTracker.ViewModels
             HorizontalBarViewModel?.SetData(active, manual, idle, locked);
         }
 
+        public void ApplyLeaveData(LeaveDuration? duration, LeaveType? type)
+        {
+            LeaveDuration = duration;
+            LeaveType = type;
+            OnPropertyChanged(nameof(HasLeave));
+            OnPropertyChanged(nameof(HasFullDayLeave));
+            OnPropertyChanged(nameof(HasMorningHalfLeave));
+            OnPropertyChanged(nameof(HasAfternoonHalfLeave));
+        }
+
         public event PropertyChangedEventHandler? PropertyChanged;
 
         protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -256,10 +266,14 @@ namespace SystemActivityTracker.ViewModels
         private readonly ObservableCollection<WeeklySummaryItem> _monthlyWeeklySummaries = new ObservableCollection<WeeklySummaryItem>();
         private bool _isMonthlyUsageEmpty = true;
         private TimeSpan _weeklyTrackedActiveDuration;
-        private readonly ActivityChartViewModel _activityChartViewModel = new ActivityChartViewModel();
+        private readonly ActivityChartViewModel _activityChartViewModel = new ActivityChartViewModel
+        {
+            ScaleFallbackReference = TimeSpan.FromHours(8)
+        };
         private readonly ActivityChartViewModel _weeklyActivityChartViewModel = new ActivityChartViewModel 
         { 
-            ReferenceTime = TimeSpan.FromHours(40) // 40 hours for weekly benchmark
+            ReferenceTime = TimeSpan.FromHours(40), // 40 hours for weekly benchmark
+            ScaleFallbackReference = TimeSpan.FromHours(40)
         };
         private readonly ActivityChartViewModel _monthlyActivityChartViewModel = new ActivityChartViewModel 
         { 
@@ -273,6 +287,12 @@ namespace SystemActivityTracker.ViewModels
         private DateTime? _selectedDayStartTime;
         private DateTime? _selectedDayEndTime;
         private TimeSpan _selectedDayManualDuration;
+        private TimeSpan _selectedDayExpectedHours = TimeSpan.FromHours(ExpectedHoursCalculator.StandardDayHours);
+        private string _selectedDayLeaveSummaryText = string.Empty;
+        private bool _hasSelectedDayLeave;
+        private TimeSpan _weekExpectedHours = TimeSpan.FromHours(ExpectedHoursCalculator.StandardWeekHours);
+        private string _weekLeaveSummaryText = string.Empty;
+        private bool _hasWeekLeave;
         private DateTime? _runStartUtc;
         private TimeSpan _accumulatedRunTime = TimeSpan.Zero;
         private readonly DispatcherTimer _runningTimer = new DispatcherTimer();
@@ -1249,6 +1269,7 @@ namespace SystemActivityTracker.ViewModels
             }
 
             RefreshTodaySummary();
+            RefreshSelectedDayExpectedHours();
             RefreshWeekIfNeeded(SelectedDate.Date);
             SyncHeaderActiveBaseFromSummary();
             RefreshMonthSurfacesForDate(SelectedDate.Date);
@@ -1256,7 +1277,7 @@ namespace SystemActivityTracker.ViewModels
 
         private void NotifySelectedWeekChanged()
         {
-            OnPropertyChanged(nameof(WeekNumberText));
+            OnPropertyChanged(nameof(WeekReportHeaderText));
             OnPropertyChanged(nameof(SelectedWeekRangeText));
             OnPropertyChanged(nameof(WeekRangeText));
             OnPropertyChanged(nameof(IsSelectedWeekInFuture));
@@ -1368,6 +1389,109 @@ namespace SystemActivityTracker.ViewModels
             var manualTime = TimeSpan.FromSeconds(GetManualSecondsForDate(date));
             var hasManualTasks = HasManualTasksForDate(date);
             dayItem.ApplyActivityData(activeTime, idleTime, lockedTime, manualTime, hasManualTasks);
+            ApplyLeaveDataToMonthDay(dayItem, date);
+        }
+
+        private void RefreshMonthDayLeaveCell(DateTime date)
+        {
+            var dayItem = _monthlyCalendarDays
+                .OfType<MonthlyDayItem>()
+                .FirstOrDefault(d => d.IsCurrentMonth && d.Date.Date == date.Date);
+
+            if (dayItem == null)
+            {
+                return;
+            }
+
+            ApplyLeaveDataToMonthDay(dayItem, date);
+        }
+
+        private void ApplyLeaveDataToMonthDay(MonthlyDayItem dayItem, DateTime date)
+        {
+            var entry = _leaveService.GetForDate(date.Date);
+            dayItem.ApplyLeaveData(entry?.Duration, entry?.Type);
+        }
+
+        private void RefreshLeaveSurfacesForDate(DateTime date)
+        {
+            var normalized = date.Date;
+
+            if (normalized == SelectedDate.Date)
+            {
+                RefreshSelectedDayExpectedHours();
+            }
+
+            if (IsDateInSelectedWeek(normalized))
+            {
+                RefreshWeekExpectedHours();
+            }
+
+            if (IsDateInSelectedMonth(normalized))
+            {
+                RefreshMonthDayLeaveCell(normalized);
+            }
+        }
+
+        private void RefreshSelectedDayExpectedHours()
+        {
+            var entry = _leaveService.GetForDate(SelectedDate.Date);
+            _hasSelectedDayLeave = entry != null;
+            _selectedDayLeaveSummaryText = entry == null
+                ? string.Empty
+                : $"Leave: {FormatLeaveType(entry.Type)} — {FormatLeaveDuration(entry.Duration)}";
+            _selectedDayExpectedHours = ExpectedHoursCalculator.GetDayExpectedHours(entry?.Duration);
+
+            OnPropertyChanged(nameof(HasSelectedDayLeave));
+            OnPropertyChanged(nameof(SelectedDayLeaveSummaryText));
+            OnPropertyChanged(nameof(SelectedDayExpectedHours));
+            OnPropertyChanged(nameof(SelectedDayExpectedHoursText));
+
+            if (!IsSelectedDateInFuture)
+            {
+                UpdateActivityChart();
+            }
+        }
+
+        private void RefreshWeekExpectedHours()
+        {
+            var leaveDurations = new List<LeaveDuration?>();
+            var leaveDayCount = 0;
+            var totalDeductionHours = 0;
+
+            for (int i = 0; i < 7; i++)
+            {
+                var date = SelectedWeekStart.Date.AddDays(i);
+                var entry = _leaveService.GetForDate(date);
+                leaveDurations.Add(entry?.Duration);
+                if (entry == null)
+                {
+                    continue;
+                }
+
+                leaveDayCount++;
+                totalDeductionHours += (int)ExpectedHoursCalculator.GetLeaveDeductionHours(entry.Duration);
+            }
+
+            _weekExpectedHours = ExpectedHoursCalculator.GetWeekExpectedHours(leaveDurations);
+            _hasWeekLeave = leaveDayCount > 0;
+            _weekLeaveSummaryText = _hasWeekLeave
+                ? $"{leaveDayCount} leave day(s), −{totalDeductionHours}h expected"
+                : string.Empty;
+
+            OnPropertyChanged(nameof(HasWeekLeave));
+            OnPropertyChanged(nameof(WeekLeaveSummaryText));
+            OnPropertyChanged(nameof(WeekExpectedHours));
+            OnPropertyChanged(nameof(WeekExpectedHoursText));
+
+            if (!IsSelectedWeekInFuture)
+            {
+                UpdateWeeklyActivityChart();
+            }
+        }
+
+        private static TimeSpan GetChartReferenceTime(TimeSpan expectedHours)
+        {
+            return expectedHours < TimeSpan.Zero ? TimeSpan.Zero : expectedHours;
         }
 
         private void RefreshMonthWeekSummary(int weekNumber)
@@ -1816,7 +1940,7 @@ namespace SystemActivityTracker.ViewModels
         public bool IsCurrentWeekSelected =>
             SelectedWeekStart.Date == GetStartOfWeek(DateTime.Today);
 
-        public string WeekNumberText => $"Week {ISOWeek.GetWeekOfYear(SelectedWeekStart.Date)}";
+        public string WeekReportHeaderText => $"Week Report (WK{ISOWeek.GetWeekOfYear(SelectedWeekStart.Date)})";
 
         public string SelectedWeekRangeText
         {
@@ -1994,6 +2118,22 @@ namespace SystemActivityTracker.ViewModels
         public string SelectedDayIdleText => $"{TotalIdleTimeToday.ToHoursMinutes()}";
         public string SelectedDayLockedText => $"{TotalLockedTimeToday.ToHoursMinutes()}";
 
+        public bool HasSelectedDayLeave => _hasSelectedDayLeave;
+
+        public string SelectedDayLeaveSummaryText => _selectedDayLeaveSummaryText;
+
+        public TimeSpan SelectedDayExpectedHours => _selectedDayExpectedHours;
+
+        public string SelectedDayExpectedHoursText => _selectedDayExpectedHours.ToHoursMinutes();
+
+        public bool HasWeekLeave => _hasWeekLeave;
+
+        public string WeekLeaveSummaryText => _weekLeaveSummaryText;
+
+        public TimeSpan WeekExpectedHours => _weekExpectedHours;
+
+        public string WeekExpectedHoursText => _weekExpectedHours.ToHoursMinutes();
+
         public string SelectedDayStartText => _selectedDayStartTime.HasValue
             ? $"{_selectedDayStartTime.Value:HH:mm}"
             : "";
@@ -2009,6 +2149,7 @@ namespace SystemActivityTracker.ViewModels
 
         private void UpdateActivityChart()
         {
+            _activityChartViewModel.ReferenceTime = GetChartReferenceTime(_selectedDayExpectedHours);
             _activityChartViewModel.SetData(
                 TotalActiveTimeToday,
                 _selectedDayManualDuration,
@@ -2022,6 +2163,7 @@ namespace SystemActivityTracker.ViewModels
 
         private void UpdateWeeklyActivityChart()
         {
+            _weeklyActivityChartViewModel.ReferenceTime = GetChartReferenceTime(_weekExpectedHours);
             _weeklyActivityChartViewModel.SetData(
                 WeeklyTrackedActiveDuration,
                 WeeklyManualDuration,
@@ -2789,6 +2931,7 @@ namespace SystemActivityTracker.ViewModels
                 _weeklySummaries.Add(BuildDailySummaryForDate(date));
             }
 
+            RefreshWeekExpectedHours();
             RecalculateWeeklyTotals();
         }
 
@@ -2921,14 +3064,20 @@ namespace SystemActivityTracker.ViewModels
             }
 
             var date = LeaveFormDate.Date;
+            var affectedDates = new List<DateTime> { date };
             if (IsLeaveEditMode && SelectedLeaveEntry != null)
             {
                 var existing = _leaveMonthEntries.FirstOrDefault(e => e.Id == SelectedLeaveEntry.Id);
                 if (existing != null)
                 {
+                    var previousDate = existing.Date.Date;
                     existing.Date = date;
                     existing.Duration = LeaveFormDuration;
                     existing.Type = LeaveFormType;
+                    if (previousDate != date)
+                    {
+                        affectedDates.Add(previousDate);
+                    }
                 }
             }
             else
@@ -2946,7 +3095,7 @@ namespace SystemActivityTracker.ViewModels
                 });
             }
 
-            PersistLeaveMonth();
+            PersistLeaveMonth(affectedDates);
             CancelLeaveEdit();
         }
 
@@ -2960,8 +3109,9 @@ namespace SystemActivityTracker.ViewModels
             var entry = _leaveMonthEntries.FirstOrDefault(e => e.Id == SelectedLeaveEntry.Id);
             if (entry != null)
             {
+                var affectedDate = entry.Date.Date;
                 _leaveMonthEntries.Remove(entry);
-                PersistLeaveMonth();
+                PersistLeaveMonth(new[] { affectedDate });
             }
 
             CancelLeaveEdit();
@@ -2975,14 +3125,19 @@ namespace SystemActivityTracker.ViewModels
             LeaveFormType = LeaveType.SickLeave;
         }
 
-        private void PersistLeaveMonth()
+        private void PersistLeaveMonth(IEnumerable<DateTime>? affectedDates = null)
         {
             _leaveService.SaveMonth(_leaveSelectedYear, _leaveSelectedMonth, _leaveMonthEntries);
             LoadLeavesForSelectedMonth();
 
-            if (_leaveSelectedYear == _selectedYear && _leaveSelectedMonth == _selectedMonth)
+            if (affectedDates == null)
             {
-                LoadMonthlyUsage();
+                return;
+            }
+
+            foreach (var date in affectedDates.Select(d => d.Date).Distinct())
+            {
+                RefreshLeaveSurfacesForDate(date);
             }
         }
 
