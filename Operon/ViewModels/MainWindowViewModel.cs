@@ -2156,9 +2156,6 @@ namespace SystemActivityTracker.ViewModels
                 TotalIdleTimeToday,
                 TotalLockedTimeToday
             );
-            
-            // Update bar sizing for larger selected day chart
-            _activityChartViewModel.UpdateBarSizing(500, 700); // Double height for selected day
         }
 
         private void UpdateWeeklyActivityChart()
@@ -2170,9 +2167,6 @@ namespace SystemActivityTracker.ViewModels
                 WeeklyTotalIdleDuration,
                 WeeklyTotalLockedDuration
             );
-            
-            // Update bar sizing for weekly chart
-            _weeklyActivityChartViewModel.UpdateBarSizing(450, 600); // Double height for weekly chart
         }
 
         private void UpdateMonthlyActivityChart()

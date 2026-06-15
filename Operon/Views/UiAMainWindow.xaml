@@ -228,6 +228,9 @@
                                             Width="140"/>
                             </Grid>
 
+                            <TextBlock Text="{Binding SelectedDayLeaveSummaryText}" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,0,8"
+                                       Visibility="{Binding HasSelectedDayLeave, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
                             <!-- Hidden Started/Ended Grid -->
                             <Grid Visibility="Collapsed">
                                 <Grid.ColumnDefinitions>
@@ -299,10 +302,8 @@
 
                             <TextBlock Text="{Binding SelectedWeekRangeText}" Style="{StaticResource SecondaryTextStyle}" Margin="0,2,0,8"/>
 
-                            <TextBlock Text="{Binding WeekLeaveSummaryText}" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,0,4"
+                            <TextBlock Text="{Binding WeekLeaveSummaryText}" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,0,8"
                                        Visibility="{Binding HasWeekLeave, Converter={StaticResource BoolToVisibilityConverter}}"/>
-
-                            <TextBlock Text="{Binding WeekExpectedHoursText}" Style="{StaticResource SecondaryTextStyle}" Margin="0,0,0,8"/>
 
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <TextBlock Text="Select week:" Style="{StaticResource SecondaryTextStyle}"
@@ -314,7 +315,7 @@
                             <ContentControl Content="{Binding WeeklyActivityChartViewModel}">
                                 <ContentControl.ContentTemplate>
                                     <DataTemplate>
-                                        <controls:ActivityChart Height="195" DataContext="{Binding}"/>
+                                        <controls:ActivityChart Height="230" DataContext="{Binding}"/>
                                     </DataTemplate>
                                 </ContentControl.ContentTemplate>
                             </ContentControl>
