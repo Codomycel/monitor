@@ -31,9 +31,10 @@ namespace SystemActivityTracker.ViewModels
     }
 
     // Monthly Calendar Data Model
-    public class MonthlyDayItem : CalendarDayItemBase
+    public class MonthlyDayItem : CalendarDayItemBase, INotifyPropertyChanged
     {
         private int _weekNumber;
+        private bool _hasManualTasks;
 
         public override DateTime Date { get; set; }
         public TimeSpan TotalActive { get; set; }
@@ -49,13 +50,45 @@ namespace SystemActivityTracker.ViewModels
         public HorizontalActivityBarViewModel? HorizontalBarViewModel { get; set; }
         public bool IsFuture { get; set; }
         public bool HasChart { get; set; }
-        public bool HasManualTasks { get; set; }
+        public bool HasManualTasks
+        {
+            get => _hasManualTasks;
+            set
+            {
+                if (_hasManualTasks == value)
+                {
+                    return;
+                }
+
+                _hasManualTasks = value;
+                OnPropertyChanged();
+            }
+        }
         public LeaveDuration? LeaveDuration { get; set; }
         public LeaveType? LeaveType { get; set; }
         public bool HasLeave => LeaveDuration.HasValue;
         public override bool HasFullDayLeave => LeaveDuration == Models.LeaveDuration.FullDay;
         public override bool HasMorningHalfLeave => LeaveDuration == Models.LeaveDuration.MorningHalf;
         public override bool HasAfternoonHalfLeave => LeaveDuration == Models.LeaveDuration.AfternoonHalf;
+
+        public void ApplyActivityData(TimeSpan active, TimeSpan idle, TimeSpan locked, TimeSpan manual, bool hasManualTasks)
+        {
+            TotalActive = active;
+            TotalIdle = idle;
+            TotalLocked = locked;
+            ManualTime = manual;
+            HasManualTasks = hasManualTasks;
+
+            ChartViewModel?.SetData(active, manual, idle, locked);
+            HorizontalBarViewModel?.SetData(active, manual, idle, locked);
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
 
     public class LeaveCalendarDayItem
@@ -81,20 +114,43 @@ namespace SystemActivityTracker.ViewModels
     }
 
     // Weekly Summary Data Model for Calendar Grid
-    public class WeeklySummaryDayItem : CalendarDayItemBase
+    public class WeeklySummaryDayItem : CalendarDayItemBase, INotifyPropertyChanged
     {
         private int _weekNumber;
         private DateTime _date = DateTime.MinValue;
         private bool _isCurrentMonth = true;
+        private TimeSpan _totalActiveHours;
         
         public override int WeekNumber { get => _weekNumber; set => _weekNumber = value; }
-        public TimeSpan TotalActiveHours { get; set; }
+        public TimeSpan TotalActiveHours
+        {
+            get => _totalActiveHours;
+            set
+            {
+                if (_totalActiveHours == value)
+                {
+                    return;
+                }
+
+                _totalActiveHours = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(TotalActiveText));
+                OnPropertyChanged(nameof(HasData));
+            }
+        }
         public string TotalActiveText => $"{(int)TotalActiveHours.TotalHours}h {TotalActiveHours.Minutes}m";
         public override bool IsWeeklySummary => true;
         public override bool IsCurrentMonth { get => _isCurrentMonth; set => _isCurrentMonth = value; }
         public override bool IsWeekend => false;
         public override bool HasData => TotalActiveHours > TimeSpan.Zero;
         public override DateTime Date { get => _date; set => _date = value; }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
 
     // Weekly Summary Data Model
@@ -168,6 +224,8 @@ namespace SystemActivityTracker.ViewModels
         private int _selectedMonth = DateTime.Today.Month;
         private DateTime _manualTasksDate = DateTime.Today;
         private DateTime _weekStartDate;
+        private DateTime? _weekPickerDate;
+        private bool _isSyncingWeekPicker;
         
         // Timeline-related fields
         private TimelineViewMode _timelineViewMode = TimelineViewMode.Month;
@@ -251,6 +309,7 @@ namespace SystemActivityTracker.ViewModels
             LastCrash = lastCrashViewModel ?? new LastCrashViewModel();
             TodayText = DateTime.Now.ToString("dddd, dd MMMM yyyy");
             _weekStartDate = StartOfWeek(DateTime.Today, DayOfWeek.Monday);
+            _weekPickerDate = DateTime.Today;
 
             // Initialize years list for Manual Tasks timeline (current year ± 5)
             var currentYear = DateTime.Today.Year;
@@ -288,12 +347,15 @@ namespace SystemActivityTracker.ViewModels
             SaveSettingsCommand = new RelayCommand(_ => SaveSettings());
             ClearCrashLogsCommand = new RelayCommand(_ => ClearCrashLogs());
             LoadWeeklyCommand = new RelayCommand(_ => LoadWeeklySummary());
+            PreviousWeekCommand = new RelayCommand(_ => SelectedWeekStart = SelectedWeekStart.AddDays(-7));
+            NextWeekCommand = new RelayCommand(_ => SelectedWeekStart = SelectedWeekStart.AddDays(7));
+            CurrentWeekCommand = new RelayCommand(_ => WeekPickerDate = DateTime.Today, _ => !IsCurrentWeekSelected);
             ForceWriteNowCommand = new RelayCommand(_ =>
             {
                 _trackingService?.FlushCurrentRecord();
                 RefreshSelectedDaySummary();
                 RefreshSelectedDayAppUsage();
-                RefreshWeeklySummary();
+                RefreshWeekIfNeeded(SelectedDate.Date);
             });
 
             _autoRefreshTimer.Tick += (_, __) =>
@@ -773,6 +835,9 @@ namespace SystemActivityTracker.ViewModels
         public ICommand SaveSettingsCommand { get; }
         public ICommand ClearCrashLogsCommand { get; }
         public ICommand LoadWeeklyCommand { get; }
+        public ICommand PreviousWeekCommand { get; }
+        public ICommand NextWeekCommand { get; }
+        public ICommand CurrentWeekCommand { get; }
         public ICommand ForceWriteNowCommand { get; }
 
         public ObservableCollection<AppUsageSummary> TodayAppUsage => _todayAppUsage;
@@ -1184,14 +1249,22 @@ namespace SystemActivityTracker.ViewModels
             }
 
             RefreshTodaySummary();
-            RefreshWeeklySummary();
+            RefreshWeekIfNeeded(SelectedDate.Date);
             SyncHeaderActiveBaseFromSummary();
+            RefreshMonthSurfacesForDate(SelectedDate.Date);
         }
 
-        private void UpdateWeekHeaderTexts()
+        private void NotifySelectedWeekChanged()
         {
             OnPropertyChanged(nameof(WeekNumberText));
+            OnPropertyChanged(nameof(SelectedWeekRangeText));
             OnPropertyChanged(nameof(WeekRangeText));
+            OnPropertyChanged(nameof(IsSelectedWeekInFuture));
+            OnPropertyChanged(nameof(IsCurrentWeekSelected));
+            if (CurrentWeekCommand is RelayCommand currentWeek)
+            {
+                currentWeek.RaiseCanExecuteChanged();
+            }
         }
 
         private void NotifyManualTotalsChanged()
@@ -1202,6 +1275,152 @@ namespace SystemActivityTracker.ViewModels
             OnPropertyChanged(nameof(SelectedDayTotalActiveText));
             OnPropertyChanged(nameof(MonthlyManualTasksText));
             OnPropertyChanged(nameof(MonthlyTotalActiveText));
+        }
+
+        private void NotifyMonthHeaderTotalsChanged()
+        {
+            OnPropertyChanged(nameof(MonthlyActiveTrackedText));
+            OnPropertyChanged(nameof(MonthlyManualTasksText));
+            OnPropertyChanged(nameof(MonthlyTotalActiveText));
+        }
+
+        /// <summary>
+        /// Refreshes day panel, week panel, and month cell/header surfaces for one date.
+        /// </summary>
+        private void RefreshDate(DateTime date)
+        {
+            RefreshDates(new[] { date });
+        }
+
+        /// <summary>
+        /// Batch refresh for one or more dates without rebuilding the full month grid.
+        /// </summary>
+        private void RefreshDates(IEnumerable<DateTime> dates)
+        {
+            var normalizedDates = dates.Select(d => d.Date).Distinct().ToList();
+            if (normalizedDates.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var date in normalizedDates)
+            {
+                if (date == SelectedDate.Date)
+                {
+                    RefreshSelectedDayManualDuration();
+                }
+            }
+
+            var weekDates = normalizedDates.Where(IsDateInSelectedWeek).Distinct().ToList();
+            foreach (var date in weekDates)
+            {
+                RefreshWeeklySummaryDay(date);
+            }
+
+            if (weekDates.Count > 0)
+            {
+                RecalculateWeeklyTotals();
+            }
+
+            var monthDates = normalizedDates.Where(IsDateInSelectedMonth).ToList();
+            if (monthDates.Count > 0)
+            {
+                foreach (var date in monthDates)
+                {
+                    RefreshMonthDayCell(date);
+                }
+
+                foreach (var weekNumber in monthDates.Select(GetCalendarWeekNumber).Distinct())
+                {
+                    RefreshMonthWeekSummary(weekNumber);
+                }
+
+                NotifyMonthHeaderTotalsChanged();
+            }
+
+            NotifyManualTotalsChanged();
+        }
+
+        private void RefreshMonthSurfacesForDate(DateTime date)
+        {
+            if (!IsDateInSelectedMonth(date))
+            {
+                return;
+            }
+
+            RefreshMonthDayCell(date);
+            RefreshMonthWeekSummary(GetCalendarWeekNumber(date));
+            NotifyMonthHeaderTotalsChanged();
+        }
+
+        private void RefreshMonthDayCell(DateTime date)
+        {
+            var dayItem = _monthlyCalendarDays
+                .OfType<MonthlyDayItem>()
+                .FirstOrDefault(d => d.IsCurrentMonth && d.Date.Date == date.Date);
+
+            if (dayItem == null || dayItem.IsFuture)
+            {
+                return;
+            }
+
+            var (activeTime, idleTime, lockedTime) = GetActivityTotalsForDate(date);
+            var manualTime = TimeSpan.FromSeconds(GetManualSecondsForDate(date));
+            var hasManualTasks = HasManualTasksForDate(date);
+            dayItem.ApplyActivityData(activeTime, idleTime, lockedTime, manualTime, hasManualTasks);
+        }
+
+        private void RefreshMonthWeekSummary(int weekNumber)
+        {
+            var weekTotal = TimeSpan.FromSeconds(
+                _monthlyCalendarDays
+                    .OfType<MonthlyDayItem>()
+                    .Where(d => d.IsCurrentMonth && d.WeekNumber == weekNumber)
+                    .Sum(d => (d.TotalActive + d.ManualTime).TotalSeconds));
+
+            foreach (var summary in _monthlyCalendarDays.OfType<WeeklySummaryDayItem>().Where(s => s.WeekNumber == weekNumber))
+            {
+                summary.TotalActiveHours = weekTotal;
+            }
+        }
+
+        private static int GetCalendarWeekNumber(DateTime date)
+        {
+            return CultureInfo.CurrentCulture.Calendar.GetWeekOfYear(
+                date,
+                CalendarWeekRule.FirstFourDayWeek,
+                DayOfWeek.Sunday);
+        }
+
+        private (TimeSpan Active, TimeSpan Idle, TimeSpan Locked) GetActivityTotalsForDate(DateTime date)
+        {
+            TimeSpan activeTime = TimeSpan.Zero;
+            TimeSpan idleTime = TimeSpan.Zero;
+            TimeSpan lockedTime = TimeSpan.Zero;
+
+            if (!_activityLogReader.TryReadDay(date.Date, out var entries))
+            {
+                return (activeTime, idleTime, lockedTime);
+            }
+
+            foreach (var entry in entries)
+            {
+                var duration = entry.EndTime - entry.StartTime;
+                if (entry.IsLocked)
+                {
+                    lockedTime += duration;
+                }
+                else if (entry.IsIdle)
+                {
+                    idleTime += duration;
+                }
+                else
+                {
+                    activeTime += duration;
+                }
+            }
+
+            return (activeTime, idleTime, lockedTime);
         }
 
         private void ResetManualEditState()
@@ -1220,17 +1439,30 @@ namespace SystemActivityTracker.ViewModels
             }
         }
 
-        private bool IsSelectedDateInCurrentWeek()
+        private bool IsDateInSelectedWeek(DateTime date)
         {
-            var weekStart = WeekStartDate.Date;
+            var weekStart = SelectedWeekStart.Date;
             var weekEnd = weekStart.AddDays(6);
-            return SelectedDate.Date >= weekStart && SelectedDate.Date <= weekEnd;
+            return date.Date >= weekStart && date.Date <= weekEnd;
         }
 
-        private bool IsSelectedDateInSelectedMonth()
+        private void RefreshWeekIfNeeded(DateTime date)
         {
-            return SelectedDate.Year == _selectedYear && SelectedDate.Month == _selectedMonth;
+            if (!IsDateInSelectedWeek(date))
+            {
+                return;
+            }
+
+            RefreshWeeklySummaryDay(date);
+            RecalculateWeeklyTotals();
         }
+
+        private bool IsDateInSelectedMonth(DateTime date)
+        {
+            return date.Year == _selectedYear && date.Month == _selectedMonth;
+        }
+
+        private bool IsSelectedDateInSelectedMonth() => IsDateInSelectedMonth(SelectedDate);
 
         private void ReloadMonth()
         {
@@ -1345,42 +1577,13 @@ namespace SystemActivityTracker.ViewModels
                 }
 
                 // Set week number
-                dayItem.WeekNumber = System.Globalization.CultureInfo.CurrentCulture.Calendar.GetWeekOfYear(date, System.Globalization.CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Sunday);
+                dayItem.WeekNumber = GetCalendarWeekNumber(date);
 
                 if (dayItem.IsCurrentMonth)
                 {
-                    TimeSpan activeTime = TimeSpan.Zero;
-                    TimeSpan idleTime = TimeSpan.Zero;
-                    TimeSpan lockedTime = TimeSpan.Zero;
-
-                    if (_activityLogReader.TryReadDay(date.Date, out var entries))
-                    {
-                        foreach (var entry in entries)
-                        {
-                            var duration = entry.EndTime - entry.StartTime;
-                            if (entry.IsLocked)
-                            {
-                                lockedTime += duration;
-                            }
-                            else if (entry.IsIdle)
-                            {
-                                idleTime += duration;
-                            }
-                            else
-                            {
-                                activeTime += duration;
-                            }
-                        }
-                    }
-
+                    var (activeTime, idleTime, lockedTime) = GetActivityTotalsForDate(date.Date);
                     var manualTime = TimeSpan.FromSeconds(GetManualSecondsForDate(date.Date));
-                    dayItem.TotalActive = activeTime;
-                    dayItem.TotalIdle = idleTime;
-                    dayItem.TotalLocked = lockedTime;
-                    dayItem.ManualTime = manualTime;
-                    
-                    // Check if date has manual tasks for highlighting
-                    dayItem.HasManualTasks = HasManualTasksForDate(date.Date);
+                    var hasManualTasks = HasManualTasksForDate(date.Date);
 
                     if (leaveByDate.TryGetValue(date.Date, out var leaveEntry))
                     {
@@ -1388,15 +1591,7 @@ namespace SystemActivityTracker.ViewModels
                         dayItem.LeaveType = leaveEntry.Type;
                     }
 
-                    // Set chart data (only if view models exist - future dates may not have them)
-                    if (dayItem.ChartViewModel != null)
-                    {
-                        dayItem.ChartViewModel.SetData(activeTime, manualTime, idleTime, lockedTime);
-                    }
-                    if (dayItem.HorizontalBarViewModel != null)
-                    {
-                        dayItem.HorizontalBarViewModel.SetData(activeTime, manualTime, idleTime, lockedTime);
-                    }
+                    dayItem.ApplyActivityData(activeTime, idleTime, lockedTime, manualTime, hasManualTasks);
                 }
 
                 _monthlyCalendarDays.Add(dayItem);
@@ -1488,9 +1683,7 @@ namespace SystemActivityTracker.ViewModels
 
             IsMonthlyUsageEmpty = _monthlyAppUsage.Count == 0;
 
-            OnPropertyChanged(nameof(MonthlyActiveTrackedText));
-            OnPropertyChanged(nameof(MonthlyManualTasksText));
-            OnPropertyChanged(nameof(MonthlyTotalActiveText));
+            NotifyMonthHeaderTotalsChanged();
         }
 
         public string MonthlyActiveTrackedText
@@ -1572,37 +1765,99 @@ namespace SystemActivityTracker.ViewModels
             }
         }
 
-        public DateTime WeekStartDate
+        public DateTime SelectedWeekStart
         {
             get => _weekStartDate;
             set
             {
-                var normalized = value.Date;
-                if (_weekStartDate != normalized)
+                var normalized = GetStartOfWeek(value);
+                if (_weekStartDate == normalized)
                 {
-                    _weekStartDate = normalized;
-                    OnPropertyChanged();
-                    UpdateWeekHeaderTexts();
-                    OnPropertyChanged(nameof(IsSelectedWeekInFuture));
-                    // reload weekly data for new week
-                    LoadWeeklySummary();
+                    return;
+                }
+
+                _weekStartDate = normalized;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(WeekStartDate));
+                SyncWeekPickerDate(normalized);
+                NotifySelectedWeekChanged();
+                LoadWeeklySummary();
+            }
+        }
+
+        public DateTime? WeekPickerDate
+        {
+            get => _weekPickerDate;
+            set
+            {
+                if (_weekPickerDate == value)
+                {
+                    return;
+                }
+
+                _weekPickerDate = value;
+                OnPropertyChanged();
+
+                if (!_isSyncingWeekPicker && value.HasValue)
+                {
+                    JumpToWeek(value.Value);
                 }
             }
         }
 
-        public bool IsSelectedWeekInFuture => WeekStartDate.Date > DateTime.Today;
+        public DateTime WeekStartDate
+        {
+            get => SelectedWeekStart;
+            set => JumpToWeek(value);
+        }
 
-        public string WeekNumberText => $"Week {ISOWeek.GetWeekOfYear(WeekStartDate.Date)}";
+        public bool IsSelectedWeekInFuture => SelectedWeekStart.Date > DateTime.Today;
 
-        public string WeekRangeText
+        public bool IsCurrentWeekSelected =>
+            SelectedWeekStart.Date == GetStartOfWeek(DateTime.Today);
+
+        public string WeekNumberText => $"Week {ISOWeek.GetWeekOfYear(SelectedWeekStart.Date)}";
+
+        public string SelectedWeekRangeText
         {
             get
             {
-                var from = WeekStartDate.Date;
+                var from = SelectedWeekStart.Date;
                 var to = from.AddDays(6);
                 return $"{from:dd-MMM-yyyy} → {to:dd-MMM-yyyy}";
             }
         }
+
+        public string WeekRangeText => SelectedWeekRangeText;
+
+        private void JumpToWeek(DateTime date)
+        {
+            var weekStart = GetStartOfWeek(date);
+            if (_weekStartDate != weekStart)
+            {
+                SelectedWeekStart = weekStart;
+            }
+        }
+
+        private void SyncWeekPickerDate(DateTime date)
+        {
+            _isSyncingWeekPicker = true;
+            try
+            {
+                var normalized = date.Date;
+                if (_weekPickerDate != normalized)
+                {
+                    _weekPickerDate = normalized;
+                    OnPropertyChanged(nameof(WeekPickerDate));
+                }
+            }
+            finally
+            {
+                _isSyncingWeekPicker = false;
+            }
+        }
+
+        private static DateTime GetStartOfWeek(DateTime date) => StartOfWeek(date.Date, DayOfWeek.Monday);
 
         public int IdleThresholdMinutes
         {
@@ -1965,23 +2220,7 @@ namespace SystemActivityTracker.ViewModels
             // Update cached manual duration immediately so Total Active reflects edits without reopening.
             _selectedDayManualDuration = TimeSpan.FromSeconds(_manualTasks.Sum(t => Math.Max(0, t.TotalSeconds)));
 
-            NotifyManualTotalsChanged();
-
-            // Recompute week totals/list if the selected day is within the currently displayed week.
-            if (IsSelectedDateInCurrentWeek())
-            {
-                LoadWeeklySummary();
-            }
-
-            // Refresh month rollups if the selected day is within the currently selected month.
-            if (IsSelectedDateInSelectedMonth())
-            {
-                OnPropertyChanged(nameof(MonthlyActiveTrackedText));
-                OnPropertyChanged(nameof(MonthlyManualTasksText));
-                OnPropertyChanged(nameof(MonthlyTotalActiveText));
-            }
-
-            // Refresh timeline if visible
+            RefreshDate(ManualTasksDate.Date);
             RefreshTimeline();
         }
 
@@ -2348,21 +2587,9 @@ namespace SystemActivityTracker.ViewModels
                 }
 
                 _selectedDayManualDuration = TimeSpan.FromSeconds(_manualTasks.Sum(t => Math.Max(0, t.TotalSeconds)));
-                NotifyManualTotalsChanged();
-
-                if (IsSelectedDateInCurrentWeek())
-                {
-                    LoadWeeklySummary();
-                }
-
-                if (IsSelectedDateInSelectedMonth())
-                {
-                    OnPropertyChanged(nameof(MonthlyActiveTrackedText));
-                    OnPropertyChanged(nameof(MonthlyManualTasksText));
-                    OnPropertyChanged(nameof(MonthlyTotalActiveText));
-                }
             }
 
+            RefreshDate(taskDate);
             return true;
         }
 
@@ -2491,61 +2718,78 @@ namespace SystemActivityTracker.ViewModels
             return string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}", (int)value.TotalHours, value.Minutes);
         }
 
-        public void LoadWeeklySummary()
+        private DailySummary BuildDailySummaryForDate(DateTime date)
         {
-            _weeklySummaries.Clear();
-
-            UpdateWeekHeaderTexts();
-
-            for (int i = 0; i < 7; i++)
+            var (active, idle, locked) = GetActivityTotalsForDate(date);
+            var manual = TimeSpan.FromSeconds(GetManualSecondsForDate(date));
+            return new DailySummary
             {
-                DateTime date = WeekStartDate.Date.AddDays(i);
+                Date = date.Date,
+                ActiveDuration = active,
+                ManualTaskDuration = manual,
+                IdleDuration = idle,
+                LockedDuration = locked
+            };
+        }
 
-                TimeSpan active = TimeSpan.Zero;
-                TimeSpan idle = TimeSpan.Zero;
-                TimeSpan locked = TimeSpan.Zero;
-                TimeSpan manual = TimeSpan.FromSeconds(GetManualSecondsForDate(date.Date));
-
-                if (_activityLogReader.TryReadDay(date.Date, out var entries))
-                {
-                    foreach (var entry in entries)
-                    {
-                        var duration = entry.EndTime - entry.StartTime;
-                        if (entry.IsLocked)
-                        {
-                            locked += duration;
-                        }
-                        else if (entry.IsIdle)
-                        {
-                            idle += duration;
-                        }
-                        else
-                        {
-                            active += duration;
-                        }
-                    }
-                }
-
-                _weeklySummaries.Add(new DailySummary
-                {
-                    Date = date,
-                    ActiveDuration = active,
-                    ManualTaskDuration = manual,
-                    IdleDuration = idle,
-                    LockedDuration = locked
-                });
+        private void RefreshWeeklySummaryDay(DateTime date)
+        {
+            var normalized = date.Date;
+            var dayIndex = (normalized - SelectedWeekStart.Date).Days;
+            if (dayIndex < 0 || dayIndex > 6)
+            {
+                return;
             }
 
+            if (_weeklySummaries.Count != 7)
+            {
+                LoadWeeklySummary();
+                return;
+            }
+
+            var summary = _weeklySummaries[dayIndex];
+            if (summary.Date.Date != normalized)
+            {
+                LoadWeeklySummary();
+                return;
+            }
+
+            var (active, idle, locked) = GetActivityTotalsForDate(normalized);
+            var manual = TimeSpan.FromSeconds(GetManualSecondsForDate(normalized));
+            summary.SetDurations(active, manual, idle, locked);
+        }
+
+        private void RecalculateWeeklyTotals()
+        {
             WeeklyTrackedActiveDuration = TimeSpan.FromTicks(_weeklySummaries.Sum(d => d.ActiveDuration.Ticks));
             WeeklyManualDuration = TimeSpan.FromTicks(_weeklySummaries.Sum(d => d.ManualTaskDuration.Ticks));
             WeeklyTotalActiveDuration = TimeSpan.FromTicks(_weeklySummaries.Sum(d => d.TotalActiveDuration.Ticks));
             WeeklyTotalIdleDuration = TimeSpan.FromTicks(_weeklySummaries.Sum(d => d.IdleDuration.Ticks));
             WeeklyTotalLockedDuration = TimeSpan.FromTicks(_weeklySummaries.Sum(d => d.LockedDuration.Ticks));
-            
+
+            OnPropertyChanged(nameof(WeeklyTrackedActiveText));
+            OnPropertyChanged(nameof(WeeklyManualText));
+            OnPropertyChanged(nameof(WeeklyTotalActiveText));
+            OnPropertyChanged(nameof(WeeklyTotalIdleText));
+            OnPropertyChanged(nameof(WeeklyTotalLockedText));
+
             if (!IsSelectedWeekInFuture)
             {
                 UpdateWeeklyActivityChart();
             }
+        }
+
+        public void LoadWeeklySummary()
+        {
+            _weeklySummaries.Clear();
+
+            for (int i = 0; i < 7; i++)
+            {
+                var date = SelectedWeekStart.Date.AddDays(i);
+                _weeklySummaries.Add(BuildDailySummaryForDate(date));
+            }
+
+            RecalculateWeeklyTotals();
         }
 
         private void ApplyLiveRefreshSettings()
